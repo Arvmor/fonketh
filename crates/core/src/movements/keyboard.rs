@@ -14,7 +14,7 @@ fn keyboard_events(event: Event) -> Result<()> {
     match event.code {
         // Quit keys
         KeyCode::Esc | KeyCode::Char('q') => {
-            return Ok(());
+            return Err(anyhow!("Quit event"));
         }
         // Movement keys
         KeyCode::Right => {
@@ -39,7 +39,7 @@ fn keyboard_events(event: Event) -> Result<()> {
     Ok(())
 }
 
-pub fn keyboard_listener() -> Result<()> {
+pub fn key_listener() -> Result<()> {
     loop {
         let event = crossterm::event::read()?;
         keyboard_events(event)?;
@@ -54,6 +54,6 @@ mod tests {
     fn test_quit_event() {
         let event = Event::Key(KeyCode::Esc.into());
         let result = keyboard_events(event);
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 }
