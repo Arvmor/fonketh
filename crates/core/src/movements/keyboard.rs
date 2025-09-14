@@ -17,12 +17,12 @@ fn keyboard_events(event: Event) -> Option<GameEvent> {
         // Quit keys
         KeyCode::Esc | KeyCode::Char('q') => GameEvent::Quit,
         // Movement keys
-        KeyCode::Right => GameEvent::PlayerMovement(Position::default()),
-        KeyCode::Left => GameEvent::PlayerMovement(Position::default()),
-        KeyCode::Up => GameEvent::PlayerMovement(Position::default()),
-        KeyCode::Down => GameEvent::PlayerMovement(Position::default()),
+        KeyCode::Right => GameEvent::PlayerMovement(Position::new(1, 0)),
+        KeyCode::Left => GameEvent::PlayerMovement(Position::new(-1, 0)),
+        KeyCode::Up => GameEvent::PlayerMovement(Position::new(0, -1)),
+        KeyCode::Down => GameEvent::PlayerMovement(Position::new(0, 1)),
         // Confirm keys
-        KeyCode::Enter => GameEvent::PlayerMovement(Position::default()),
+        KeyCode::Enter => return None,
         _ => return None,
     };
 

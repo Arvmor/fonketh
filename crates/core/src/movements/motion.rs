@@ -1,13 +1,13 @@
 use crate::prelude::*;
 
 #[derive(Debug, Default, PartialEq, Eq)]
-pub struct Position {
-    pub x: u32,
-    pub y: u32,
+pub struct Position<T = i64> {
+    pub x: T,
+    pub y: T,
 }
 
-impl Position {
-    pub fn new(x: u32, y: u32) -> Self {
+impl<T> Position<T> {
+    pub fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 }
