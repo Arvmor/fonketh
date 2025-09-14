@@ -1,49 +1,39 @@
+use crate::movements::Position;
 use crate::prelude::*;
+use crate::world::GameEvent;
 use ratatui::crossterm::{
     self,
     event::{Event, KeyCode},
 };
 
-fn keyboard_events(event: Event) -> Result<()> {
+fn keyboard_events(event: Event) -> Option<GameEvent> {
     // Short Circuit none-key events
     let Event::Key(event) = event else {
-        return Ok(());
+        return None;
     };
 
     // Check for event variants
-    match event.code {
+    let event = match event.code {
         // Quit keys
-        KeyCode::Esc | KeyCode::Char('q') => {
-            return Err(anyhow!("Quit event"));
-        }
+        KeyCode::Esc | KeyCode::Char('q') => GameEvent::Quit,
         // Movement keys
-        KeyCode::Right => {
-            return Ok(());
-        }
-        KeyCode::Left => {
-            return Ok(());
-        }
-        KeyCode::Up => {
-            return Ok(());
-        }
-        KeyCode::Down => {
-            return Ok(());
-        }
+        KeyCode::Right => GameEvent::PlayerMovement(Position::default()),
+        KeyCode::Left => GameEvent::PlayerMovement(Position::default()),
+        KeyCode::Up => GameEvent::PlayerMovement(Position::default()),
+        KeyCode::Down => GameEvent::PlayerMovement(Position::default()),
         // Confirm keys
-        KeyCode::Enter => {
-            return Ok(());
-        }
-        _ => {}
-    }
+        KeyCode::Enter => GameEvent::PlayerMovement(Position::default()),
+        _ => return None,
+    };
 
-    Ok(())
+    Some(event)
 }
 
-pub fn key_listener() -> Result<()> {
-    loop {
-        let event = crossterm::event::read()?;
-        keyboard_events(event)?;
-    }
+pub fn read_key() -> Result<Option<GameEvent>> {
+    let key = crossterm::event::read()?;
+    let event = keyboard_events(key);
+
+    Ok(event)
 }
 
 #[cfg(test)]
@@ -53,7 +43,11 @@ mod tests {
     #[test]
     fn test_quit_event() {
         let event = Event::Key(KeyCode::Esc.into());
-        let result = keyboard_events(event);
-        assert!(result.is_err());
+        let result = keyboard_events(event).unwrap();
+        assert_eq!(result, GameEvent::Quit);
+
+        let event = Event::Key(KeyCode::Char('q').into());
+        let result = keyboard_events(event).unwrap();
+        assert_eq!(result, GameEvent::Quit);
     }
 }

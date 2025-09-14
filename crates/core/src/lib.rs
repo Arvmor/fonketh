@@ -1,9 +1,11 @@
+pub mod events;
 pub mod map;
 pub mod movements;
 pub mod player;
 
 // Crate Internal API
 pub mod world {
+    pub use crate::events::GameEvent;
     pub use crate::map::World;
     pub use crate::player::Character;
 }

@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Position {
     pub x: u32,
     pub y: u32,
