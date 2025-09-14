@@ -3,7 +3,7 @@ use crate::prelude::*;
 use crate::world::GameEvent;
 use ratatui::crossterm::{
     self,
-    event::{Event, KeyCode},
+    event::{Event, KeyCode, KeyEventKind},
 };
 
 fn keyboard_events(event: Event) -> Option<GameEvent> {
@@ -11,6 +11,12 @@ fn keyboard_events(event: Event) -> Option<GameEvent> {
     let Event::Key(event) = event else {
         return None;
     };
+
+    // Use only release events to avoid double events
+    debug!("Keyboard event: {:?}", event);
+    if event.kind != KeyEventKind::Release {
+        return None;
+    }
 
     // Check for event variants
     let event = match event.code {
