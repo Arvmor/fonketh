@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::prelude::Frame;
 use std::ops::AddAssign;
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
@@ -21,5 +21,5 @@ impl<T: AddAssign> AddAssign for Position<T> {
 }
 
 pub trait Motion {
-    fn r#move(&self) -> Result<()>;
+    fn r#move(&self, frame: &mut Frame);
 }

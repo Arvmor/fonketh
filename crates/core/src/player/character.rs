@@ -1,5 +1,5 @@
 use crate::movements::{Motion, Position};
-use crate::prelude::Result;
+use crate::prelude::Frame;
 use crate::utils::Identifier;
 
 #[derive(Debug, Default, Clone)]
@@ -30,9 +30,7 @@ impl<N, B> Character<N, B> {
 }
 
 impl<N, B> Motion for Character<N, B> {
-    fn r#move(&self) -> Result<()> {
-        Ok(())
-    }
+    fn r#move(&self, frame: &mut Frame) {}
 }
 
 impl<N: Clone, B> Identifier for Character<N, B> {

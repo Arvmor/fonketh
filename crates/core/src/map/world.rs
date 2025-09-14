@@ -1,14 +1,8 @@
-use crate::movements::read_key;
+use crate::movements::{Motion, read_key};
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent};
 use game_network::Network;
-use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout};
-use ratatui::style::Color;
-use ratatui::symbols::Marker;
-use ratatui::widgets::canvas::{Canvas, Circle};
-use ratatui::widgets::{Block, Widget};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -34,6 +28,15 @@ impl<I: Eq + Hash, B> PlayersPool<I, B> {
     pub fn remove_player(&self, identifier: &I) {
         let mut players = self.players.write().unwrap();
         players.remove(identifier);
+    }
+
+    pub fn get_player(&self, identifier: &I) -> Character<I, B>
+    where
+        I: Clone,
+        B: Clone,
+    {
+        let players = self.players.read().unwrap();
+        players.get(identifier).unwrap().clone()
     }
 
     pub fn update_player<F, R>(&self, identifier: &I, func: F) -> Option<R>
@@ -105,33 +108,12 @@ where
 
         // Main game loop - render once for now
         while !self.exit_status.is_exit() {
-            terminal.draw(|frame| self.draw(frame))?;
+            terminal.draw(|frame| self.r#move(frame))?;
         }
 
         // Restore terminal
         ratatui::restore();
         Ok(())
-    }
-
-    fn draw(&self, frame: &mut Frame) {
-        let surface = [Constraint::Percentage(50), Constraint::Percentage(50)];
-        let horizontal = Layout::horizontal(surface);
-        let vertical = Layout::vertical(surface);
-        let [_, right] = horizontal.areas(frame.area());
-        let [pong, _] = vertical.areas(right);
-
-        frame.render_widget(self.pong_canvas(), pong);
-    }
-
-    fn pong_canvas(&self) -> impl Widget + '_ {
-        Canvas::default()
-            .block(Block::bordered().title("Pong"))
-            .marker(Marker::Dot)
-            .paint(|ctx| {
-                ctx.draw(&CIRCLE);
-            })
-            .x_bounds([10.0, 210.0])
-            .y_bounds([10.0, 110.0])
     }
 
     pub fn update(&self, identifier: &I, event: GameEvent) {
@@ -147,6 +129,27 @@ where
                 debug!("Player {:?} quit", identifier);
             }
         }
+    }
+}
+
+impl<I, B> Motion for World<I, B>
+where
+    I: Eq + Hash + Clone,
+    B: Clone,
+{
+    fn r#move(&self, frame: &mut Frame) {
+        let p = self.players.get_player(&self.identifier).position;
+        frame.render_widget(
+            Canvas::default()
+                .block(Block::bordered())
+                .marker(Marker::Dot)
+                .paint(|ctx| {
+                    ctx.draw(&CIRCLE);
+                })
+                .x_bounds([10.0 - p.x as f64, 210.0 - p.x as f64])
+                .y_bounds([10.0 + p.y as f64, 110.0 + p.y as f64]),
+            frame.area(),
+        );
     }
 }
 
