@@ -36,6 +36,7 @@ impl<I: Eq + Hash, P> PlayersPool<I, P> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct World<I, P> {
     exit_status: Arc<ExitStatus>,
     identifier: I,
@@ -49,7 +50,11 @@ const CIRCLE: Circle = Circle {
     color: Color::Yellow,
 };
 
-impl<I: Eq + Hash + Clone, P: Identifier<Id = I>> World<I, P> {
+impl<I, P> World<I, P>
+where
+    I: Eq + Hash + Clone + Send + Sync + 'static,
+    P: Identifier<Id = I> + Clone + Send + Sync + 'static,
+{
     pub fn new(player: P) -> Self {
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
@@ -71,26 +76,17 @@ impl<I: Eq + Hash + Clone, P: Identifier<Id = I>> World<I, P> {
         let mut terminal = ratatui::init();
 
         // Listen for key events
-        let status = self.exit_status.clone();
-        let players = self.players.clone();
+        let world = self.clone();
         tokio::spawn(async move {
-            loop {
+            while !world.exit_status.is_exit() {
                 // Read key event
-                let event = match read_key() {
-                    Ok(Some(event)) => event,
+                match read_key() {
+                    Ok(Some(e)) => world.update(e),
                     Ok(None) => continue,
                     Err(e) => {
                         info!("Key listener error: {:?}", e);
-                        break status.exit();
+                        world.exit_status.exit();
                     }
-                };
-
-                // Handle event
-                match event {
-                    GameEvent::PlayerMovement(p) => {
-                        info!("Player moved to: {:?}", p);
-                    }
-                    GameEvent::Quit => break status.exit(),
                 }
             }
         });
@@ -127,6 +123,17 @@ impl<I: Eq + Hash + Clone, P: Identifier<Id = I>> World<I, P> {
             })
             .x_bounds([10.0, 210.0])
             .y_bounds([10.0, 110.0])
+    }
+
+    fn update(&self, event: GameEvent) {
+        match event {
+            GameEvent::PlayerMovement(p) => {
+                info!("Player moved to: {:?}", p);
+            }
+            GameEvent::Quit => {
+                self.exit_status.exit();
+            }
+        }
     }
 }
 

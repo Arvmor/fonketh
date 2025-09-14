@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub struct Position<T = i64> {
     pub x: T,
     pub y: T,

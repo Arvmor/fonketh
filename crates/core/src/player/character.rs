@@ -2,7 +2,7 @@ use crate::movements::{Motion, Position};
 use crate::prelude::Result;
 use crate::utils::Identifier;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Character<N, B> {
     pub name: N,
     pub balance: B,
