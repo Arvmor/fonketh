@@ -1,5 +1,6 @@
 use crate::movements::{Motion, Position};
 use crate::prelude::Result;
+use crate::utils::Identifier;
 
 #[derive(Debug, Default)]
 pub struct Character<N, B> {
@@ -31,5 +32,13 @@ impl<N, B> Character<N, B> {
 impl<N, B> Motion for Character<N, B> {
     fn r#move(&self) -> Result<()> {
         Ok(())
+    }
+}
+
+impl<N: Clone, B> Identifier for Character<N, B> {
+    type Id = N;
+
+    fn identifier(&self) -> Self::Id {
+        self.name.clone()
     }
 }

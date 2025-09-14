@@ -2,6 +2,7 @@ pub mod events;
 pub mod map;
 pub mod movements;
 pub mod player;
+pub mod utils;
 
 // Crate Internal API
 pub mod world {
