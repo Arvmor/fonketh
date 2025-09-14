@@ -8,3 +8,4 @@ name = "app"
 path = "src/main.rs"
 
 [dependencies]
+game_core = { path = "../core" }
