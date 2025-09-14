@@ -1,7 +1,11 @@
+pub mod map;
 pub mod player;
 
-// Crate Public API
-pub use player::Character;
+// Crate Internal API
+pub mod world {
+    pub use crate::map::World;
+    pub use crate::player::Character;
+}
 
 // Crate Prelude
 pub mod prelude {
