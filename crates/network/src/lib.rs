@@ -1,14 +1,10 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+pub mod p2p;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// Crate Public API
+pub use p2p::Network;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+// Crate Prelude
+pub mod prelude {
+    pub use anyhow::{Result, anyhow};
+    pub use tracing::{debug, error, info, trace, warn};
 }

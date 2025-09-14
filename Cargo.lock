@@ -204,6 +204,7 @@ name = "game_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "game_network",
  "ratatui",
  "serde",
  "serde_json",
@@ -214,6 +215,10 @@ dependencies = [
 [[package]]
 name = "game_network"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tracing",
+]
 
 [[package]]
 name = "gimli"
