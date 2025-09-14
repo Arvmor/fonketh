@@ -1,4 +1,5 @@
 pub mod map;
+pub mod movements;
 pub mod player;
 
 // Crate Internal API
