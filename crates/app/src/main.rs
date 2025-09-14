@@ -1,7 +1,8 @@
 use game_core::prelude::*;
 use game_core::world::{Character, World};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
