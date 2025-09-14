@@ -1,14 +1,22 @@
-use crate::movements::Motion;
+use crate::movements::{Motion, Position};
 use crate::prelude::Result;
 
+#[derive(Debug, Default)]
 pub struct Character<N, B> {
     pub name: N,
     pub balance: B,
+    pub position: Position,
 }
 
 impl<N, B> Character<N, B> {
     pub fn new(name: N, balance: B) -> Self {
-        Self { name, balance }
+        let position = Position::default();
+
+        Self {
+            name,
+            balance,
+            position,
+        }
     }
 
     pub fn name(&self) -> &N {
