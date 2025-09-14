@@ -13,4 +13,5 @@ pub mod prelude {
     pub use anyhow::{Result, anyhow};
     pub use serde::{Deserialize, Serialize};
     pub use serde_json::json;
+    pub use tracing::{debug, error, info, trace, warn};
 }
