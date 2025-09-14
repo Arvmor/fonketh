@@ -8,7 +8,7 @@ async fn main() -> Result<()> {
 
     // Initialize world
     let character = Character::new("John", 0);
-    let world = World::new("1", vec![character]);
+    let world = World::new(character);
     world.initialize()?;
 
     Ok(())
