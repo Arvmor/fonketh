@@ -1,7 +1,7 @@
-use crate::prelude::Frame;
+use crate::prelude::{Deserialize, Frame, Serialize};
 use std::ops::AddAssign;
 
-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct Position<T = i64> {
     pub x: T,
     pub y: T,
