@@ -2,9 +2,9 @@ use crate::movements::{Motion, read_key};
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent};
+use game_network::Peer2Peer;
 use game_network::prelude::Keypair;
 use game_network::prelude::gossipsub::IdentTopic;
-use game_network::{Network, Peer2Peer};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -90,8 +90,8 @@ where
         let mut terminal = ratatui::init();
 
         // Listen for motion events
-        let network = Peer2Peer::build(Keypair::generate_ed25519())?;
-        network.connect()?;
+        let topic = IdentTopic::new("game_events");
+        let network = Peer2Peer::build(Keypair::generate_ed25519())?.start(vec![topic.clone()]);
 
         // Listen for key events
         let world = self.clone();
@@ -108,10 +108,9 @@ where
                     }
                 };
 
-                let topic = IdentTopic::new("game_events");
                 let data = serde_json::to_vec(&event).unwrap();
                 world.update(&world.identifier, event);
-                if let Err(e) = network.send(topic, data) {
+                if let Err(e) = network.send((topic.clone(), data)).await {
                     error!("Network error: {:?}", e);
                 }
             }

@@ -14,7 +14,7 @@ fn keyboard_events(event: Event) -> Option<GameEvent> {
 
     // Use only release events to avoid double events
     debug!("Keyboard event: {:?}", event);
-    if event.kind != KeyEventKind::Release {
+    if event.kind == KeyEventKind::Repeat {
         return None;
     }
 

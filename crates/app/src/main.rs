@@ -9,7 +9,10 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::fmt()
         .with_ansi(false)
         .with_max_level(LevelFilter::DEBUG)
-        .with_writer(File::create("debug.log")?)
+        .with_writer(File::create(format!(
+            "debug_{:?}.log",
+            std::time::SystemTime::now()
+        ))?)
         .init();
 
     // Initialize world
