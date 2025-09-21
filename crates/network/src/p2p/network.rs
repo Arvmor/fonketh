@@ -2,7 +2,7 @@ use crate::prelude::*;
 use libp2p::{
     StreamProtocol, Swarm,
     futures::StreamExt,
-    gossipsub::IdentTopic,
+    gossipsub::{IdentTopic, Message},
     identity::Keypair,
     swarm::{NetworkBehaviour, SwarmEvent},
 };
@@ -16,22 +16,22 @@ pub struct MyBehaviour {
     kad: kad::Behaviour<kad::store::MemoryStore>,
 }
 
-pub trait Network {
+pub trait GossipTypes {
     type Topic;
     type Data;
+}
 
+pub trait Network: GossipTypes {
     fn listen(&mut self) -> Result<()>;
     fn subscribe(&mut self, topic: Self::Topic) -> Result<()>;
     fn send(&mut self, topic: Self::Topic, data: Self::Data) -> Result<()>;
 }
 
-pub struct Peer2Peer<T, M>
-where
-    T: Into<IdentTopic> + Send + Sync + 'static,
-    M: Into<Vec<u8>> + Send + Sync + 'static,
-{
+pub struct Peer2Peer<T, M> {
     pub sender: mpsc::Sender<(T, M)>,
     receiver: mpsc::Receiver<(T, M)>,
+    pub listener: Option<mpsc::Receiver<Message>>,
+    talker: mpsc::Sender<Message>,
     swarm: Swarm<MyBehaviour>,
 }
 
@@ -49,6 +49,7 @@ where
                 yamux::Config::default,
             )?
             .with_quic()
+            .with_dns()?
             // Create behavior.
             .with_behaviour(|key| {
                 // Set a custom gossipsub configuration
@@ -78,11 +79,14 @@ where
             .build();
 
         let (sender, receiver) = mpsc::channel(100);
+        let (talker, listener) = mpsc::channel(100);
 
         Ok(Self {
             swarm,
             sender,
             receiver,
+            listener: Some(listener),
+            talker,
         })
     }
 
@@ -92,10 +96,21 @@ where
         for topic in topics {
             self.subscribe(topic)?;
         }
+
+        // Kick it off
         loop {
             tokio::select! {
+                biased;
+                Some((topic, data)) = self.receiver.recv() => {
+                        debug!("Received message from receiver");
+                        if let Err(e) = self.send(topic, data) {
+                            error!("Send error: {e:?}");
+                        }
+                }
                 event = self.swarm.select_next_some() => match event {
-                    SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(
+                        list,
+                    ))) => {
                         for (peer_id, multiaddr) in list {
                             info!("mDNS discovered a new peer: {peer_id}");
                             let behaviour = self.swarm.behaviour_mut();
@@ -113,32 +128,29 @@ where
                             info!("Removed explicit peer {peer_id}");
                         }
                     }
-                    SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                        propagation_source: peer_id,
-                        message_id: id,
-                        message,
-                    })) => info!(
-                        "Got message: '{}' with id: {id} from peer: {peer_id}",
-                        String::from_utf8_lossy(&message.data),
-                    ),
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(
+                        gossipsub::Event::Message { message, .. },
+                    )) => {
+                        info!("Received gossipsub message: {:?}", message);
+                        self.talker.send(message).await.unwrap();
+                    }
                     _ => {}
-                },
-                message = self.receiver.recv() => match message {
-                    Some((topic, data)) => {
-                        debug!("received message");
-                        self.send(topic, data)?
-                    },
-                    None => return Err(anyhow!("Receiver closed"))
                 }
             }
         }
     }
 
-    pub fn start(self, topics: Vec<T>) -> mpsc::Sender<(T, M)> {
+    pub fn start(mut self, topics: Vec<T>) -> (mpsc::Sender<(T, M)>, mpsc::Receiver<Message>) {
         let sender = self.sender.clone();
+        let listener = self.listener.take().unwrap();
         tokio::spawn(self.run(topics));
-        sender
+        (sender, listener)
     }
+}
+
+impl<T, M> GossipTypes for Peer2Peer<T, M> {
+    type Topic = T;
+    type Data = M;
 }
 
 impl<T, M> Network for Peer2Peer<T, M>
@@ -146,9 +158,6 @@ where
     T: Into<IdentTopic> + Send + Sync + 'static,
     M: Into<Vec<u8>> + Send + Sync + 'static,
 {
-    type Topic = T;
-    type Data = M;
-
     fn listen(&mut self) -> Result<()> {
         self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
@@ -166,11 +175,11 @@ where
         let topic = topic.into();
         let data = data.into();
 
-        debug!("Sending Gossipsub message to topic: {topic}");
         if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
             error!("Publish error: {e:?}");
         }
 
+        debug!("Sending Gossipsub message to topic");
         Ok(())
     }
 }
@@ -182,30 +191,35 @@ mod tests {
     use tokio::time::sleep;
     use tracing::level_filters::LevelFilter;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_build() {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_build() -> Result<()> {
         tracing_subscriber::fmt::fmt()
             .with_max_level(LevelFilter::DEBUG)
             .init();
 
         // Network 1
         let topic = IdentTopic::new("test");
-        let keypair = Keypair::ed25519_from_bytes([1; 32]).unwrap();
-        let sender = Peer2Peer::build(keypair)
+        let keypair = Keypair::generate_ed25519();
+        let (sender, mut listener) = Peer2Peer::build(keypair)
             .unwrap()
             .start(vec![topic.clone()]);
 
-        sleep(Duration::from_secs(5)).await;
+        loop {
+            tokio::select! {
+                _ = sleep(Duration::from_secs(5)) => {
+                    sender
+                        .send((topic.clone(), b"Hello, world!"))
+                        .await
+                        .unwrap();
+            }
+                message = listener.recv() => match message {
+                    Some(message) => {
+                        info!("Received message: {:?}", message);
+                    },
+                    None => return Err(anyhow!("Listener closed"))
+                }
 
-        let keypair = Keypair::ed25519_from_bytes([2; 32]).unwrap();
-        let sender2 = Peer2Peer::build(keypair)
-            .unwrap()
-            .start(vec![topic.clone()]);
-        sleep(Duration::from_secs(5)).await;
-        for _ in 0..10 {
-            sender.send((topic.clone(), b"Hello, world!")).await;
-            sender2.send((topic.clone(), b"Hello, world!2")).await;
-            sleep(Duration::from_secs(5)).await;
+            }
         }
     }
 }
