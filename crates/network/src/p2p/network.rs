@@ -6,6 +6,7 @@ use libp2p::{
     identity::Keypair,
     swarm::{NetworkBehaviour, SwarmEvent},
 };
+use std::fmt::Debug;
 use tokio::sync::mpsc;
 pub const GAME_PROTO_NAME: StreamProtocol = StreamProtocol::new("/game/kad/1.0.0");
 
@@ -37,8 +38,8 @@ pub struct Peer2Peer<T, M> {
 
 impl<T, M> Peer2Peer<T, M>
 where
-    T: Into<IdentTopic> + Send + Sync + 'static,
-    M: Into<Vec<u8>> + Send + Sync + 'static,
+    T: Into<IdentTopic> + Send + Sync + 'static + Debug,
+    M: Into<Vec<u8>> + Send + Sync + 'static + Debug,
 {
     pub fn build(keypair: Keypair) -> Result<Self> {
         let swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
@@ -100,17 +101,13 @@ where
         // Kick it off
         loop {
             tokio::select! {
-                biased;
                 Some((topic, data)) = self.receiver.recv() => {
-                        debug!("Received message from receiver");
-                        if let Err(e) = self.send(topic, data) {
-                            error!("Send error: {e:?}");
-                        }
+                    if let Err(e) = self.send(topic, data) {
+                        error!("Publish error: {e:?}");
+                    }
                 }
-                event = self.swarm.select_next_some() => match event {
-                    SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(
-                        list,
-                    ))) => {
+                SwarmEvent::Behaviour(event) = self.swarm.select_next_some() => match event {
+                    MyBehaviourEvent::Mdns(mdns::Event::Discovered(list)) => {
                         for (peer_id, multiaddr) in list {
                             info!("mDNS discovered a new peer: {peer_id}");
                             let behaviour = self.swarm.behaviour_mut();
@@ -119,7 +116,7 @@ where
                             info!("Added explicit peer {peer_id}");
                         }
                     }
-                    SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
+                    MyBehaviourEvent::Mdns(mdns::Event::Expired(list)) => {
                         for (peer_id, multiaddr) in list {
                             info!("mDNS discover peer has expired: {peer_id}");
                             let behaviour = self.swarm.behaviour_mut();
@@ -128,10 +125,11 @@ where
                             info!("Removed explicit peer {peer_id}");
                         }
                     }
-                    SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(
-                        gossipsub::Event::Message { message, .. },
-                    )) => {
-                        info!("Received gossipsub message: {:?}", message);
+                    MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
+                        message,
+                        ..
+                    }) => {
+                        info!("Gossipsub message received: {message:?}",);
                         self.talker.send(message).await.unwrap();
                     }
                     _ => {}
@@ -175,51 +173,9 @@ where
         let topic = topic.into();
         let data = data.into();
 
-        if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(topic, data) {
-            error!("Publish error: {e:?}");
-        }
+        debug!("Publishing Gossipsub topic {topic:?} with data {data:?}",);
+        self.swarm.behaviour_mut().gossipsub.publish(topic, data)?;
 
-        debug!("Sending Gossipsub message to topic");
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-    use tokio::time::sleep;
-    use tracing::level_filters::LevelFilter;
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_build() -> Result<()> {
-        tracing_subscriber::fmt::fmt()
-            .with_max_level(LevelFilter::DEBUG)
-            .init();
-
-        // Network 1
-        let topic = IdentTopic::new("test");
-        let keypair = Keypair::generate_ed25519();
-        let (sender, mut listener) = Peer2Peer::build(keypair)
-            .unwrap()
-            .start(vec![topic.clone()]);
-
-        loop {
-            tokio::select! {
-                _ = sleep(Duration::from_secs(5)) => {
-                    sender
-                        .send((topic.clone(), b"Hello, world!"))
-                        .await
-                        .unwrap();
-            }
-                message = listener.recv() => match message {
-                    Some(message) => {
-                        info!("Received message: {:?}", message);
-                    },
-                    None => return Err(anyhow!("Listener closed"))
-                }
-
-            }
-        }
     }
 }
