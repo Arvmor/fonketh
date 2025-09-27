@@ -107,26 +107,21 @@ where
                     }
                 };
 
+                world.update(&world.identifier, &event);
                 let data = serde_json::to_vec(&event).unwrap();
-                world.update(&world.identifier, event);
                 if let Err(e) = network_tx.send((topic.clone(), data)).await {
                     error!("Network error: {:?}", e);
                 }
             }
         });
 
-        let world = self.clone();
-        tokio::spawn(async move {
-            while let Some(message) = network_rx.recv().await {
-                let identifier = message.identifier();
-                let event = serde_json::from_slice(&message.data).unwrap();
-                info!("Received event gossipsub: {:?}", event);
-                world.update(&identifier, event);
-            }
-        });
-
         // Main game loop - render once for now
         while !self.exit_status.is_exit() {
+            if let Ok(m) = network_rx.try_recv() {
+                let event = serde_json::from_slice(&m.data).unwrap();
+                self.update(&m.identifier(), &event);
+            }
+
             terminal.draw(|frame| self.r#move(frame))?;
         }
 
@@ -135,11 +130,11 @@ where
         Ok(())
     }
 
-    pub fn update(&self, identifier: &PeerId, event: GameEvent) {
+    pub fn update(&self, identifier: &PeerId, event: &GameEvent) {
         match event {
             GameEvent::PlayerMovement(p) => {
                 let res = self.players.update_player(identifier, |player| {
-                    player.position += p;
+                    player.position += *p;
                 });
                 if res.is_none() {
                     self.players
