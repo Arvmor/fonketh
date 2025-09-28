@@ -4,6 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tokio = { workspace = true }
+libp2p = { version = "0.56.0", features = [
+    "tokio",
+    "gossipsub",
+    "mdns",
+    "dns",
+    "noise",
+    "macros",
+    "tcp",
+    "yamux",
+    "quic",
+    "kad",
+] }
 anyhow = { workspace = true }
-libp2p = "0.56.0"
 tracing = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = "0.3.20"
