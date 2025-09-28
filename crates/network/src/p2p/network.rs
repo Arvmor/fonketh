@@ -6,7 +6,7 @@ use libp2p::{
     identity::Keypair,
     swarm::{NetworkBehaviour, SwarmEvent},
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 use tokio::sync::mpsc;
 pub const GAME_PROTO_NAME: StreamProtocol = StreamProtocol::new("/game/kad/1.0.0");
 
@@ -99,8 +99,10 @@ where
         }
 
         // Kick it off
+        let mut interval = tokio::time::interval(Duration::from_millis(10));
         loop {
             tokio::select! {
+                _ = interval.tick() => {}
                 Some((topic, data)) = self.receiver.recv() => {
                     if let Err(e) = self.send(topic, data) {
                         error!("Publish error: {e:?}");
