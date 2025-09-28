@@ -5,6 +5,7 @@ use ratatui::crossterm::{
     self,
     event::{Event, KeyCode, KeyEventKind},
 };
+use std::time::Duration;
 
 fn keyboard_events(event: Event) -> Option<GameEvent> {
     // Short Circuit none-key events
@@ -36,10 +37,15 @@ fn keyboard_events(event: Event) -> Option<GameEvent> {
 }
 
 pub fn read_key() -> Result<Option<GameEvent>> {
-    let key = crossterm::event::read()?;
-    let event = keyboard_events(key);
+    let is_available = crossterm::event::poll(Duration::from_millis(10))?;
 
-    Ok(event)
+    if is_available {
+        let key = crossterm::event::read()?;
+        let event = keyboard_events(key);
+        return Ok(event);
+    }
+
+    Ok(None)
 }
 
 #[cfg(test)]

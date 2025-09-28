@@ -83,42 +83,39 @@ where
         }
     }
 
-    pub fn initialize(self, keypair: Keypair) -> Result<()> {
+    pub async fn initialize(self, keypair: Keypair) -> Result<()> {
         // Initialize terminal
         info!("Initializing world");
         let mut terminal = ratatui::init();
 
         // Listen for motion events
         let topic = IdentTopic::new("game_events");
-        let (network_tx, mut network_rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
-
-        // Listen for key events
-        let world = self.clone();
-        tokio::spawn(async move {
-            while !world.exit_status.is_exit() {
-                // Read key event
-                let event = match read_key() {
-                    Ok(Some(e)) => e,
-                    Ok(None) => continue,
-                    Err(e) => {
-                        info!("Key listener error: {:?}", e);
-                        world.exit_status.exit();
-                        continue;
-                    }
-                };
-
-                world.update(&world.identifier, &event);
-                let data = serde_json::to_vec(&event).unwrap();
-                if let Err(e) = network_tx.send((topic.clone(), data)).await {
-                    error!("Network error: {:?}", e);
-                }
-            }
-        });
-
+        let (tx, mut rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
         // Main game loop - render once for now
         while !self.exit_status.is_exit() {
-            if let Ok(m) = network_rx.try_recv() {
+            // Listen for key events
+            match read_key() {
+                Ok(None) => {}
+                Ok(Some(e)) => {
+                    self.update(&self.identifier, &e);
+
+                    // Send event to network
+                    let data = serde_json::to_vec(&e)?;
+                    if let Err(e) = tx.send((topic.clone(), data)).await {
+                        error!("Network error: {:?}", e);
+                    };
+                }
+                Err(e) => {
+                    info!("Key listener error: {:?}", e);
+                    self.exit_status.exit();
+                }
+            };
+
+            // Listen for network events
+            if let Ok(m) = rx.try_recv() {
                 let event = serde_json::from_slice(&m.data).unwrap();
+                info!("Received Network event: {:#?}", event);
+
                 self.update(&m.identifier(), &event);
             }
 
