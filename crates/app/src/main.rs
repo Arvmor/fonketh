@@ -17,7 +17,10 @@ async fn main() -> Result<()> {
         .init();
 
     // Initialize world
-    let arg = std::env::args().nth(1).unwrap().parse::<u8>()?;
+    let arg = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "1".to_string())
+        .parse::<u8>()?;
     let keypair = Keypair::ed25519_from_bytes([arg; 32])?;
     let character = Character::new(keypair.public().to_peer_id(), 0);
     let world = World::new(character);

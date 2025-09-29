@@ -19,7 +19,7 @@ pub mod prelude {
     pub use ratatui::layout::{Constraint, Layout};
     pub use ratatui::style::Color;
     pub use ratatui::symbols::Marker;
-    pub use ratatui::widgets::canvas::{Canvas, Circle};
+    pub use ratatui::widgets::canvas::{Canvas, Circle, Rectangle};
     pub use ratatui::widgets::{Block, Widget};
     pub use serde::{Deserialize, Serialize};
     pub use serde_json::json;

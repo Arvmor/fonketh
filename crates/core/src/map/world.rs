@@ -1,4 +1,5 @@
 use crate::movements::{Motion, read_key};
+use crate::player::PixelatedCharacter;
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent};
@@ -57,12 +58,9 @@ pub struct World<I, B> {
     players: Arc<PlayersPool<I, B>>,
 }
 
-const CIRCLE: Circle = Circle {
-    x: 20.0,
-    y: 40.0,
-    radius: 10.0,
-    color: Color::Yellow,
-};
+// Base position for characters
+const BASE_X: f64 = 20.0;
+const BASE_Y: f64 = 40.0;
 
 impl<B> World<PeerId, B>
 where
@@ -134,8 +132,16 @@ where
                     player.position += *p;
                 });
                 if res.is_none() {
-                    self.players
-                        .add_player(*identifier, Character::new(*identifier, Default::default()));
+                    // Create a character with different Stardew Valley sprites for new players
+                    let sprite = match identifier.to_string().chars().last().unwrap_or('0') {
+                        '1' => PixelatedCharacter::new_villager(),
+                        '2' => PixelatedCharacter::new_merchant(),
+                        _ => PixelatedCharacter::new_farmer(),
+                    };
+                    self.players.add_player(
+                        *identifier,
+                        Character::new_with_sprite(*identifier, Default::default(), sprite),
+                    );
                 }
                 debug!("Player {:?} moved by: {:?}", identifier, p);
             }
@@ -161,26 +167,43 @@ where
     B: Clone,
 {
     fn r#move(&self, frame: &mut Frame) {
-        let circles = self
+        let players: Vec<_> = self
             .players
             .players
             .read()
             .unwrap()
             .values()
-            .map(|player| {
-                let mut c = CIRCLE;
-                c.x += player.position.x as f64;
-                c.y -= player.position.y as f64;
-                c
-            })
-            .collect::<Vec<_>>();
+            .cloned()
+            .collect();
+
         frame.render_widget(
             Canvas::default()
                 .block(Block::bordered())
-                .marker(Marker::Dot)
+                .marker(Marker::Block)
                 .paint(|ctx| {
-                    for c in &circles {
-                        ctx.draw(c);
+                    for player in &players {
+                        let char_x = BASE_X + player.position.x as f64;
+                        let char_y = BASE_Y - player.position.y as f64;
+
+                        // Draw each pixel of the character sprite
+                        for (y, row) in player.sprite.pixels.iter().enumerate() {
+                            for (x, color) in row.iter().enumerate() {
+                                if *color != Color::Reset {
+                                    let pixel_x = char_x + x as f64;
+                                    let pixel_y = char_y + y as f64;
+
+                                    // Create a small rectangle for each pixel
+                                    let rect = Rectangle {
+                                        x: pixel_x,
+                                        y: pixel_y,
+                                        width: 1.0,
+                                        height: 1.0,
+                                        color: *color,
+                                    };
+                                    ctx.draw(&rect);
+                                }
+                            }
+                        }
                     }
                 })
                 .x_bounds([10.0, 210.0])
