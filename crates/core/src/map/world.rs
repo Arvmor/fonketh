@@ -84,13 +84,11 @@ where
     }
 
     pub async fn initialize(self, keypair: Keypair) -> Result<()> {
-        // Initialize terminal
-        info!("Initializing world");
-        let mut terminal = ratatui::init();
-
         // Listen for motion events
+        info!("Initializing world");
         let topic = IdentTopic::new("game_events");
         let (tx, mut rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
+
         // Main game loop - render once for now
         while !self.exit_status.is_exit() {
             // Listen for key events
@@ -118,12 +116,8 @@ where
 
                 self.update(&m.identifier(), &event);
             }
-
-            terminal.draw(|frame| self.r#move(frame))?;
         }
 
-        // Restore terminal
-        ratatui::restore();
         Ok(())
     }
 

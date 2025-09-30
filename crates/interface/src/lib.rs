@@ -2,17 +2,17 @@ use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 use std::time::Duration;
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
-        .add_systems(Startup, setup)
-        .add_systems(Update, execute_animations)
-        .add_systems(
-            Update,
-            trigger_animation::<RightSprite>.run_if(input_just_pressed(KeyCode::ArrowRight)),
-        )
-        .run();
-}
+// fn main() {
+//     App::new()
+//         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
+//         .add_systems(Startup, setup)
+//         .add_systems(Update, execute_animations)
+//         .add_systems(
+//             Update,
+//             trigger_animation::<RightSprite>.run_if(input_just_pressed(KeyCode::ArrowRight)),
+//         )
+//         .run();
+// }
 
 // This system runs when the user clicks the left arrow key or right arrow key
 fn trigger_animation<S: Component>(mut animation: Single<&mut AnimationConfig, With<S>>) {
