@@ -9,12 +9,7 @@ fn main() {
         .add_systems(Update, execute_animations)
         .add_systems(
             Update,
-            (
-                // Press the right arrow key to animate the right sprite
-                trigger_animation::<RightSprite>.run_if(input_just_pressed(KeyCode::ArrowRight)),
-                // Press the left arrow key to animate the left sprite
-                trigger_animation::<LeftSprite>.run_if(input_just_pressed(KeyCode::ArrowLeft)),
-            ),
+            trigger_animation::<RightSprite>.run_if(input_just_pressed(KeyCode::ArrowRight)),
         )
         .run();
 }
@@ -50,30 +45,35 @@ impl AnimationConfig {
 
 // This system loops through all the sprites in the `TextureAtlas`, from  `first_sprite_index` to
 // `last_sprite_index` (both defined in `AnimationConfig`).
-fn execute_animations(time: Res<Time>, mut query: Query<(&mut AnimationConfig, &mut Sprite)>) {
-    for (mut config, mut sprite) in &mut query {
+fn execute_animations(
+    time: Res<Time>,
+    mut query: Query<(&mut AnimationConfig, &mut Sprite, &mut Transform)>,
+) {
+    for (mut config, mut sprite, mut transform) in &mut query {
         // We track how long the current sprite has been displayed for
         config.frame_timer.tick(time.delta());
 
         // If it has been displayed for the user-defined amount of time (fps)...
-        if config.frame_timer.just_finished() {
-            if let Some(atlas) = &mut sprite.texture_atlas {
-                if atlas.index == config.last_sprite_index {
-                    // ...and it IS the last frame, then we move back to the first frame and stop.
-                    atlas.index = config.first_sprite_index;
-                } else {
-                    // ...and it is NOT the last frame, then we move to the next frame...
-                    atlas.index += 1;
-                    // ...and reset the frame timer to start counting all over again
-                    config.frame_timer = AnimationConfig::timer_from_fps(config.fps);
-                }
-            }
+        if !config.frame_timer.just_finished() {
+            continue;
         }
+
+        let Some(atlas) = &mut sprite.texture_atlas else {
+            continue;
+        };
+
+        // If last frame, then we move back to the first frame and stop.
+        if atlas.index == config.last_sprite_index {
+            atlas.index = config.first_sprite_index;
+            continue;
+        }
+
+        // Reset the frame timer to start counting all over again
+        atlas.index += 1;
+        transform.translation.x += 1500. * time.delta_secs();
+        config.frame_timer = AnimationConfig::timer_from_fps(config.fps);
     }
 }
-
-#[derive(Component)]
-struct LeftSprite;
 
 #[derive(Component)]
 struct RightSprite;
@@ -85,57 +85,25 @@ fn setup(
 ) {
     commands.spawn(Camera2d);
 
-    // Create a minimal UI explaining how to interact with the example
-    commands.spawn((
-        Text::new("Left Arrow: Animate Left Sprite\nRight Arrow: Animate Right Sprite"),
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(12.0),
-            left: Val::Px(12.0),
-            ..default()
-        },
-    ));
-
     // Load the sprite sheet using the `AssetServer`
-    let texture = asset_server.load("textures/characters/gabe-idle-run.png");
-
-    // The sprite sheet has 7 sprites arranged in a row, and they are all 24px x 24px
-    let layout = TextureAtlasLayout::from_grid(UVec2::splat(24), 7, 1, None, None);
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let image = asset_server.load("textures/characters/gabe-idle-run.png");
+    let texture_atlas_layout = TextureAtlasLayout::from_grid(UVec2::splat(24), 7, 1, None, None);
+    let layout = texture_atlas_layouts.add(texture_atlas_layout);
 
     // The first (left-hand) sprite runs at 10 FPS
-    let animation_config_1 = AnimationConfig::new(1, 6, 10);
+    let animation_config_1 = AnimationConfig::new(1, 6, 20);
+    let index = animation_config_1.first_sprite_index;
+    let texture_atlas = Some(TextureAtlas { layout, index });
 
     // Create the first (left-hand) sprite
     commands.spawn((
         Sprite {
-            image: texture.clone(),
-            texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout.clone(),
-                index: animation_config_1.first_sprite_index,
-            }),
+            image,
+            texture_atlas,
             ..default()
         },
-        Transform::from_scale(Vec3::splat(6.0)).with_translation(Vec3::new(-70.0, 0.0, 0.0)),
-        LeftSprite,
-        animation_config_1,
-    ));
-
-    // The second (right-hand) sprite runs at 20 FPS
-    let animation_config_2 = AnimationConfig::new(1, 6, 20);
-
-    // Create the second (right-hand) sprite
-    commands.spawn((
-        Sprite {
-            image: texture.clone(),
-            texture_atlas: Some(TextureAtlas {
-                layout: texture_atlas_layout.clone(),
-                index: animation_config_2.first_sprite_index,
-            }),
-            ..Default::default()
-        },
-        Transform::from_scale(Vec3::splat(6.0)).with_translation(Vec3::new(70.0, 0.0, 0.0)),
+        Transform::from_scale(Vec3::splat(6.0)),
         RightSprite,
-        animation_config_2,
+        animation_config_1,
     ));
 }
