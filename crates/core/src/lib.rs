@@ -8,6 +8,7 @@ pub mod utils;
 pub mod world {
     pub use crate::events::GameEvent;
     pub use crate::map::World;
+    pub use crate::movements::keyboard_events;
     pub use crate::player::Character;
     pub use game_network::prelude::Keypair;
 }

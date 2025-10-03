@@ -1,15 +1,9 @@
 use game_core::prelude::*;
 use game_core::world::{Character, Keypair, World};
-use std::fs::File;
 use tracing_subscriber::filter::LevelFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    // let log_file = format!(
-    //     "debug_{:?}.log",
-    //     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?
-    // );
     tracing_subscriber::fmt::fmt()
         .with_max_level(LevelFilter::DEBUG)
         .init();

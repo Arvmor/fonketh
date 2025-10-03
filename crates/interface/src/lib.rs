@@ -1,6 +1,13 @@
 use bevy::input::common_conditions::input_just_pressed;
+use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use std::sync::mpsc::Sender;
 use std::time::Duration;
+
+pub mod prelude {
+    pub use crate::Interface;
+    pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
+}
 
 // fn main() {
 //     App::new()
@@ -13,6 +20,41 @@ use std::time::Duration;
 //         )
 //         .run();
 // }
+
+pub struct Interface {
+    pub app: AppExit,
+}
+
+impl Interface {
+    pub fn run(channel: Sender<KeyboardInput>) -> Self {
+        let sender = KeyEventSender(channel);
+
+        let app = App::new()
+            .insert_resource(sender)
+            .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
+            .add_systems(Startup, setup)
+            .add_systems(Update, capture_key_events)
+            .add_systems(Update, execute_animations)
+            .add_systems(
+                Update,
+                trigger_animation::<RightSprite>.run_if(input_just_pressed(KeyCode::ArrowRight)),
+            )
+            .run();
+
+        Self { app }
+    }
+}
+
+#[derive(Resource)]
+struct KeyEventSender(Sender<KeyboardInput>);
+
+fn capture_key_events(mut evr_keys: EventReader<KeyboardInput>, sender: Res<KeyEventSender>) {
+    for ev in evr_keys.read() {
+        // Send over channel (ignore if receiver is closed)
+        let res = sender.0.send(ev.clone());
+        info!("Keyboard event: {ev:?} => {res:?}");
+    }
+}
 
 // This system runs when the user clicks the left arrow key or right arrow key
 fn trigger_animation<S: Component>(mut animation: Single<&mut AnimationConfig, With<S>>) {
