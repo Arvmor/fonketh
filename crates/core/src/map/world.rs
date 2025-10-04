@@ -28,20 +28,6 @@ impl<I: Eq + Hash, B> PlayersPool<I, B> {
         players.insert(identifier, player);
     }
 
-    pub fn remove_player(&self, identifier: &I) {
-        let mut players = self.players.write().unwrap();
-        players.remove(identifier);
-    }
-
-    pub fn get_player(&self, identifier: &I) -> Character<I, B>
-    where
-        I: Clone,
-        B: Clone,
-    {
-        let players = self.players.read().unwrap();
-        players.get(identifier).unwrap().clone()
-    }
-
     pub fn update_player<F, R>(&self, identifier: &I, func: F) -> Option<R>
     where
         F: FnOnce(&mut Character<I, B>) -> R,
@@ -88,8 +74,9 @@ where
 
         // Main game loop - render once for now
         let (txb, rxb) = mpsc::channel();
+        let world = self.clone();
         tokio::spawn(async move {
-            Interface::run(txb);
+            Interface::run(txb, world);
         });
 
         self.runner(keypair, rxb).await?;
@@ -152,6 +139,22 @@ where
                 debug!("Player {:?} quit", identifier);
             }
         }
+    }
+
+    /// Gets all players from the world
+    pub fn get_all_players(&self) -> HashMap<PeerId, Character<PeerId, B>>
+    where
+        B: Clone,
+    {
+        self.players.players.read().unwrap().clone()
+    }
+}
+
+impl<B> Identifier for World<PeerId, B> {
+    type Id = game_network::prelude::PeerId;
+
+    fn identifier(&self) -> Self::Id {
+        self.identifier
     }
 }
 
