@@ -72,26 +72,30 @@ where
     pub async fn initialize(self, keypair: Keypair) -> Result<()> {
         info!("Initializing world");
 
-        // Main game loop - render once for now
+        // Run network loop
+        let topic = IdentTopic::new("game_events");
+        let (tx, rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
+
+        // Run core loop
         let (txb, rxb) = mpsc::channel();
         let world = self.clone();
         tokio::spawn(async move {
-            Interface::run(txb, world);
+            world.runner(topic, rxb, tx, rx).await.unwrap();
         });
 
-        self.runner(keypair, rxb).await?;
+        // Run interface loop
+        Interface::run(txb, self);
         Ok(())
     }
 
     /// Handles the message passing from input and network
     async fn runner(
         self,
-        keypair: Keypair,
+        topic: IdentTopic,
         rxb: mpsc::Receiver<KeyboardInput>,
+        tx: tokio::sync::mpsc::Sender<(IdentTopic, Vec<u8>)>,
+        mut rx: tokio::sync::mpsc::Receiver<Message>,
     ) -> anyhow::Result<()> {
-        let topic = IdentTopic::new("game_events");
-        let (tx, mut rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
-
         while !self.exit_status.is_exit() {
             // Listen for key events
             if let Ok(Some(e)) = rxb.try_recv().map(|e| keyboard_events(e.key_code)) {

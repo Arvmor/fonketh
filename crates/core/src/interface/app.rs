@@ -2,7 +2,6 @@ use crate::utils::Identifier;
 use crate::world::World as WorldCore;
 pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::prelude::*;
-use bevy::winit::{WakeUp, WinitPlugin};
 use game_network::prelude::PeerId;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -34,21 +33,13 @@ impl Interface {
         let sender = KeyEventSender(channel);
         let world = WorldState(world);
 
-        // Run on any thread
-        let mut winit = WinitPlugin::<WakeUp>::default();
-        winit.run_on_any_thread = true;
-
         let app = App::new()
             // Channel to pass Events to core
             .insert_resource(sender)
             .insert_resource(world)
             .insert_resource(SpawnedPlayers::default())
             .insert_resource(PlayerStates::default())
-            .add_plugins(
-                DefaultPlugins
-                    .set(ImagePlugin::default_nearest())
-                    .set(winit),
-            ) // prevents blurry sprites
+            .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
             .add_systems(Startup, setup::<B>)
             .add_systems(Update, capture_key_events)
             .add_systems(Update, track_movement_events::<B>)
