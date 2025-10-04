@@ -1,5 +1,5 @@
 mod keyboard;
 mod motion;
 
-pub use keyboard::read_key;
-pub use motion::{Motion, Position};
+pub use keyboard::keyboard_events;
+pub use motion::Position;

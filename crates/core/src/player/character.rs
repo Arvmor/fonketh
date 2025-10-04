@@ -1,5 +1,4 @@
-use crate::movements::{Motion, Position};
-use crate::prelude::Frame;
+use crate::movements::Position;
 use crate::utils::Identifier;
 
 #[derive(Debug, Default, Clone)]
@@ -27,10 +26,6 @@ impl<N, B> Character<N, B> {
     pub fn balance(&self) -> &B {
         &self.balance
     }
-}
-
-impl<N, B> Motion for Character<N, B> {
-    fn r#move(&self, frame: &mut Frame) {}
 }
 
 impl<N: Clone, B> Identifier for Character<N, B> {

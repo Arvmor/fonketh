@@ -1,4 +1,4 @@
-use crate::prelude::{Deserialize, Frame, Serialize};
+use crate::prelude::{Deserialize, Serialize};
 use std::ops::AddAssign;
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
@@ -18,8 +18,4 @@ impl<T: AddAssign> AddAssign for Position<T> {
         self.x += other.x;
         self.y += other.y;
     }
-}
-
-pub trait Motion {
-    fn r#move(&self, frame: &mut Frame);
 }

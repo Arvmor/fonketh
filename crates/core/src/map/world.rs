@@ -1,13 +1,14 @@
-use crate::movements::{Motion, read_key};
+use crate::interface::{Interface, KeyboardInput};
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
-use crate::world::{Character, GameEvent};
+use crate::world::{Character, GameEvent, keyboard_events};
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
 use game_network::prelude::{Keypair, PeerId};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
@@ -57,17 +58,13 @@ pub struct World<I, B> {
     players: Arc<PlayersPool<I, B>>,
 }
 
-const CIRCLE: Circle = Circle {
-    x: 20.0,
-    y: 40.0,
-    radius: 10.0,
-    color: Color::Yellow,
-};
-
 impl<B> World<PeerId, B>
 where
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
+    /// Creates a new world
+    ///
+    /// Initializes the world with the player
     pub fn new(player: Character<PeerId, B>) -> Self {
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
@@ -83,50 +80,61 @@ where
         }
     }
 
+    /// Initializes the world
+    ///
+    /// Runs Network and Interface
     pub async fn initialize(self, keypair: Keypair) -> Result<()> {
-        // Initialize terminal
         info!("Initializing world");
-        let mut terminal = ratatui::init();
 
-        // Listen for motion events
-        let topic = IdentTopic::new("game_events");
-        let (tx, mut rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
         // Main game loop - render once for now
-        while !self.exit_status.is_exit() {
-            // Listen for key events
-            match read_key() {
-                Ok(None) => {}
-                Ok(Some(e)) => {
-                    self.update(&self.identifier, &e);
+        let (txb, rxb) = mpsc::channel();
+        tokio::spawn(async move {
+            Interface::run(txb);
+        });
 
-                    // Send event to network
-                    let data = serde_json::to_vec(&e)?;
-                    if let Err(e) = tx.send((topic.clone(), data)).await {
-                        error!("Network error: {:?}", e);
-                    };
-                }
-                Err(e) => {
-                    info!("Key listener error: {:?}", e);
-                    self.exit_status.exit();
-                }
-            };
-
-            // Listen for network events
-            if let Ok(m) = rx.try_recv() {
-                let event = serde_json::from_slice(&m.data).unwrap();
-                info!("Received Network event: {:#?}", event);
-
-                self.update(&m.identifier(), &event);
-            }
-
-            terminal.draw(|frame| self.r#move(frame))?;
-        }
-
-        // Restore terminal
-        ratatui::restore();
+        self.runner(keypair, rxb).await?;
         Ok(())
     }
 
+    /// Handles the message passing from input and network
+    async fn runner(
+        self,
+        keypair: Keypair,
+        rxb: mpsc::Receiver<KeyboardInput>,
+    ) -> anyhow::Result<()> {
+        let topic = IdentTopic::new("game_events");
+        let (tx, mut rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
+
+        while !self.exit_status.is_exit() {
+            // Listen for key events
+            if let Ok(Some(e)) = rxb.try_recv().map(|e| keyboard_events(e.key_code)) {
+                info!("Received Keyboard event: {e:?}");
+                self.update(&self.identifier, &e);
+
+                // Send event to network
+                let data = serde_json::to_vec(&e)?;
+                if let Err(e) = tx.send((topic.clone(), data)).await {
+                    error!("Network error: {:?}", e);
+                };
+            }
+
+            // Listen for network events
+            if let Ok(m) = rx.try_recv() {
+                let event = serde_json::from_slice(&m.data);
+                info!("Received Network message: {m:?} => {event:?}");
+
+                if let Ok(event) = event {
+                    self.update(&m.identifier(), &event);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Updates the world
+    ///
+    /// Based on the Events received
     pub fn update(&self, identifier: &PeerId, event: &GameEvent) {
         match event {
             GameEvent::PlayerMovement(p) => {
@@ -152,40 +160,5 @@ impl Identifier for Message {
 
     fn identifier(&self) -> Self::Id {
         self.source.unwrap()
-    }
-}
-
-impl<I, B> Motion for World<I, B>
-where
-    I: Eq + Hash + Clone,
-    B: Clone,
-{
-    fn r#move(&self, frame: &mut Frame) {
-        let circles = self
-            .players
-            .players
-            .read()
-            .unwrap()
-            .values()
-            .map(|player| {
-                let mut c = CIRCLE;
-                c.x += player.position.x as f64;
-                c.y -= player.position.y as f64;
-                c
-            })
-            .collect::<Vec<_>>();
-        frame.render_widget(
-            Canvas::default()
-                .block(Block::bordered())
-                .marker(Marker::Dot)
-                .paint(|ctx| {
-                    for c in &circles {
-                        ctx.draw(c);
-                    }
-                })
-                .x_bounds([10.0, 210.0])
-                .y_bounds([10.0, 110.0]),
-            frame.area(),
-        );
     }
 }
