@@ -10,8 +10,8 @@ pub fn keyboard_events(key: KeyCode) -> Option<GameEvent> {
         // Movement keys
         KeyCode::ArrowRight => GameEvent::PlayerMovement(Position::new(1, 0)),
         KeyCode::ArrowLeft => GameEvent::PlayerMovement(Position::new(-1, 0)),
-        KeyCode::ArrowUp => GameEvent::PlayerMovement(Position::new(0, -1)),
-        KeyCode::ArrowDown => GameEvent::PlayerMovement(Position::new(0, 1)),
+        KeyCode::ArrowUp => GameEvent::PlayerMovement(Position::new(0, 1)),
+        KeyCode::ArrowDown => GameEvent::PlayerMovement(Position::new(0, -1)),
         // Confirm keys
         KeyCode::Enter => return None,
         _ => return None,
