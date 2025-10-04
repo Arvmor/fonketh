@@ -62,6 +62,9 @@ impl<B> World<PeerId, B>
 where
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
+    /// Creates a new world
+    ///
+    /// Initializes the world with the player
     pub fn new(player: Character<PeerId, B>) -> Self {
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
@@ -129,6 +132,9 @@ where
         Ok(())
     }
 
+    /// Updates the world
+    ///
+    /// Based on the Events received
     pub fn update(&self, identifier: &PeerId, event: &GameEvent) {
         match event {
             GameEvent::PlayerMovement(p) => {
