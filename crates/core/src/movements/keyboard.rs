@@ -1,6 +1,6 @@
 use crate::movements::Position;
 use crate::world::GameEvent;
-use interface::prelude::KeyCode;
+use game_interface::prelude::KeyCode;
 
 pub fn keyboard_events(key: KeyCode) -> Option<GameEvent> {
     // Check for event variants

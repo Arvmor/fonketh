@@ -85,9 +85,11 @@ where
 
         // Main game loop - render once for now
         let (txb, rxb) = mpsc::channel();
-        tokio::spawn(self.runner(keypair, rxb));
+        tokio::spawn(async move {
+            Interface::run(txb);
+        });
 
-        Interface::run(txb);
+        self.runner(keypair, rxb).await?;
         Ok(())
     }
 

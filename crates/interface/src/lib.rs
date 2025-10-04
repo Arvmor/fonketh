@@ -1,6 +1,7 @@
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use bevy::winit::{WakeUp, WinitPlugin};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
@@ -9,29 +10,32 @@ pub mod prelude {
     pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
 }
 
-// fn main() {
-//     App::new()
-//         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
-//         .add_systems(Startup, setup)
-//         .add_systems(Update, execute_animations)
-//         .add_systems(
-//             Update,
-//             trigger_animation::<RightSprite>.run_if(input_just_pressed(KeyCode::ArrowRight)),
-//         )
-//         .run();
-// }
-
+/// Interface for the game
+///
+/// responsible for managing Bevy app and Keyboard events
 pub struct Interface {
     pub app: AppExit,
 }
 
 impl Interface {
+    /// Runs the Bevy app
+    ///
+    /// Creates a new Bevy app and runs it
     pub fn run(channel: Sender<KeyboardInput>) -> Self {
         let sender = KeyEventSender(channel);
 
+        // Run on any thread
+        let mut winit = WinitPlugin::<WakeUp>::default();
+        winit.run_on_any_thread = true;
+
         let app = App::new()
+            // Channel to pass Events to core
             .insert_resource(sender)
-            .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
+            .add_plugins(
+                DefaultPlugins
+                    .set(ImagePlugin::default_nearest())
+                    .set(winit),
+            ) // prevents blurry sprites
             .add_systems(Startup, setup)
             .add_systems(Update, capture_key_events)
             .add_systems(Update, execute_animations)
@@ -48,11 +52,15 @@ impl Interface {
 #[derive(Resource)]
 struct KeyEventSender(Sender<KeyboardInput>);
 
+/// Captures keyboard events and sends them to the core channel
 fn capture_key_events(mut evr_keys: EventReader<KeyboardInput>, sender: Res<KeyEventSender>) {
     for ev in evr_keys.read() {
-        // Send over channel (ignore if receiver is closed)
-        let res = sender.0.send(ev.clone());
-        info!("Keyboard event: {ev:?} => {res:?}");
+        info!("Keyboard event: {ev:?}");
+
+        // Send over channel to core
+        if let Err(e) = sender.0.send(ev.clone()) {
+            error!("Error sending keyboard event: {e:?}");
+        }
     }
 }
 
