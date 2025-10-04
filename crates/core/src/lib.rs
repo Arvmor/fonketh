@@ -1,4 +1,5 @@
 pub mod events;
+pub mod interface;
 pub mod map;
 pub mod movements;
 pub mod player;

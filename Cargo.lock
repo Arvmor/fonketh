@@ -2666,19 +2666,12 @@ name = "game_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "game_interface",
+ "bevy",
  "game_network",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "game_interface"
-version = "0.1.0"
-dependencies = [
- "bevy",
 ]
 
 [[package]]

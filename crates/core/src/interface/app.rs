@@ -1,14 +1,9 @@
 use bevy::input::common_conditions::input_just_pressed;
-use bevy::input::keyboard::KeyboardInput;
+pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::prelude::*;
 use bevy::winit::{WakeUp, WinitPlugin};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
-
-pub mod prelude {
-    pub use crate::Interface;
-    pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
-}
 
 /// Interface for the game
 ///
