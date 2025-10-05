@@ -39,7 +39,7 @@ impl<I: Eq + Hash, B> PlayersPool<I, B> {
 
 #[derive(Debug, Clone)]
 pub struct World<I, B> {
-    exit_status: Arc<ExitStatus>,
+    pub exit_status: Arc<ExitStatus>,
     identifier: I,
     players: Arc<PlayersPool<I, B>>,
 }

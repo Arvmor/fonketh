@@ -26,9 +26,10 @@ impl Interface {
     /// Runs the Bevy app
     ///
     /// Creates a new Bevy app and runs it
-    pub fn run<B>(channel: Sender<KeyboardInput>, world: WorldCore<PeerId, B>) -> Self
+    pub fn run<I, B>(channel: Sender<KeyboardInput>, world: WorldCore<I, B>) -> Self
     where
         B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+        I: Send + Sync + 'static,
     {
         let sender = KeyEventSender(channel);
         let world = WorldState(world);
@@ -42,6 +43,7 @@ impl Interface {
             .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
             .add_systems(Startup, setup::<B>)
             .add_systems(Update, capture_key_events)
+            .add_systems(Update, check_shutdown_conditions::<I, B>) // Add this system
             .add_systems(Update, track_movement_events::<B>)
             .add_systems(Update, track_network_movements::<B>)
             .add_systems(Update, execute_animations::<B>)
@@ -401,5 +403,20 @@ fn spawn_new_players<B>(
             animation_config,
             PlayerEntity { peer_id },
         ));
+    }
+}
+
+/// System to check for external shutdown conditions
+fn check_shutdown_conditions<I, B>(
+    mut writer: EventWriter<AppExit>,
+    world_state: Res<WorldState<I, B>>,
+) where
+    I: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+{
+    // Example: Check if the world's exit status is set
+    if world_state.0.exit_status.is_exit() {
+        info!("Shutting down Interface");
+        writer.write(AppExit::Success);
     }
 }
