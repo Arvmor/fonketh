@@ -1,3 +1,4 @@
+use crate::interface::{FPS, IDLE_DURATION, MAGIC_GROUND_SPEED, MAGIC_SPEED};
 use crate::utils::Identifier;
 use crate::world::World as WorldCore;
 pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
@@ -49,6 +50,7 @@ impl Interface {
             .add_systems(Update, execute_animations::<B>)
             .add_systems(Update, spawn_new_players::<B>)
             .add_systems(Update, handle_idle_transitions::<B>)
+            .add_systems(Update, update_ground_position::<B>)
             .run();
 
         Self { app }
@@ -100,6 +102,10 @@ struct PlayerStates {
 struct PlayerEntity {
     peer_id: PeerId,
 }
+
+/// Component to identify the ground entity
+#[derive(Component)]
+struct Ground;
 
 /// Captures keyboard events and sends them to the core channel
 fn capture_key_events(mut evr_keys: EventReader<KeyboardInput>, sender: Res<KeyEventSender>) {
@@ -298,7 +304,6 @@ fn handle_idle_transitions<B>(
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
     let now = Instant::now();
-    const IDLE_DURATION: Duration = Duration::from_millis(200); // 200ms delay before going idle
     let all_players = world_state.0.get_all_players();
 
     // Check all players (both local and network) for idle transitions
@@ -330,6 +335,7 @@ fn setup<B>(
     commands.spawn((
         Sprite { image, ..default() },
         Transform::from_translation(Vec3::new(0., 0., -1.)).with_scale(Vec3::splat(1.5)),
+        Ground,
     ));
 
     // Load the sprite sheet using the `AssetServer`
@@ -338,7 +344,7 @@ fn setup<B>(
     let layout = texture_atlas_layouts.add(texture_atlas_layout);
 
     // The first (left-hand) sprite runs at 10 FPS
-    let animation_config_1 = AnimationConfig::new(1, 6, 20);
+    let animation_config_1 = AnimationConfig::new(1, 6, FPS);
     let index = animation_config_1.first_sprite_index;
     let texture_atlas = Some(TextureAtlas { layout, index });
 
@@ -383,7 +389,7 @@ fn spawn_new_players<B>(
         let layout = texture_atlas_layouts.add(texture_atlas_layout);
 
         // Create animation config for this player
-        let animation_config = AnimationConfig::new(1, 6, 20);
+        let animation_config = AnimationConfig::new(1, 6, FPS);
         let index = animation_config.first_sprite_index;
         let texture_atlas = Some(TextureAtlas { layout, index });
 
@@ -395,14 +401,37 @@ fn spawn_new_players<B>(
                 ..default()
             },
             Transform::from_scale(Vec3::splat(6.0)).with_translation(Vec3::new(
-                character.position.x as f32 * 24.0, // Convert to pixel coordinates
-                character.position.y as f32 * 24.0,
+                character.position.x as f32 * MAGIC_SPEED,
+                character.position.y as f32 * MAGIC_SPEED,
                 0.0,
             )),
             RightSprite,
             animation_config,
             PlayerEntity { peer_id },
         ));
+    }
+}
+
+/// System to update ground position based on local player movement
+fn update_ground_position<B>(
+    world_state: Res<WorldState<PeerId, B>>,
+    mut ground_query: Query<&mut Transform, With<Ground>>,
+) where
+    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+{
+    let local_player_id = world_state.0.identifier();
+    let all_players = world_state.0.get_all_players();
+
+    // Get the local player's position
+    if let Some(local_player) = all_players.get(&local_player_id) {
+        let player_x = local_player.position.x as f32 * MAGIC_GROUND_SPEED;
+        let player_y = local_player.position.y as f32 * MAGIC_GROUND_SPEED;
+
+        // Update ground position to follow the player
+        for mut ground_transform in ground_query.iter_mut() {
+            ground_transform.translation.x = player_x;
+            ground_transform.translation.y = player_y;
+        }
     }
 }
 
