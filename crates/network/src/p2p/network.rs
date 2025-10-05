@@ -7,7 +7,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
 };
 use std::{fmt::Debug, time::Duration};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::TryRecvError};
 pub const GAME_PROTO_NAME: StreamProtocol = StreamProtocol::new("/game/kad/1.0.0");
 
 #[derive(NetworkBehaviour)]
@@ -102,12 +102,20 @@ where
         let mut interval = tokio::time::interval(Duration::from_millis(10));
         loop {
             tokio::select! {
-                _ = interval.tick() => {}
-                Some((topic, data)) = self.receiver.recv() => {
-                    if let Err(e) = self.send(topic, data) {
-                        error!("Publish error: {e:?}");
+                _ = interval.tick() => loop {
+                    match self.receiver.try_recv() {
+                        Err(TryRecvError::Empty) => break,
+                        Ok((topic, data)) => {
+                            if let Err(e) = self.send(topic, data) {
+                                error!("Publish error: {e:?}");
+                            }
+                        },
+                        Err(e) => {
+                            error!("Receive error: {e:?}");
+                            return Err(e.into());
+                        },
                     }
-                }
+                },
                 SwarmEvent::Behaviour(event) = self.swarm.select_next_some() => match event {
                     MyBehaviourEvent::Mdns(mdns::Event::Discovered(list)) => {
                         for (peer_id, multiaddr) in list {
