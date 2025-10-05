@@ -67,12 +67,30 @@ struct SpawnedPlayers {
     spawned: HashSet<PeerId>,
 }
 
+/// Player state information bundled together for better cache locality
+#[derive(Debug, Clone)]
+struct PlayerStateInfo {
+    state: CharacterState,
+    last_movement_time: Instant,
+    previous_position: (i64, i64),
+    facing_right: bool,
+}
+
+impl Default for PlayerStateInfo {
+    fn default() -> Self {
+        Self {
+            state: CharacterState::Idle,
+            last_movement_time: Instant::now(),
+            previous_position: (0, 0),
+            facing_right: true, // Default to facing right
+        }
+    }
+}
+
 /// Resource to track player states and movement times within the interface
 #[derive(Resource, Default)]
 struct PlayerStates {
-    states: HashMap<PeerId, CharacterState>,
-    last_movement_times: HashMap<PeerId, Instant>,
-    previous_positions: HashMap<PeerId, (i64, i64)>,
+    players: HashMap<PeerId, PlayerStateInfo>,
 }
 
 /// Component to identify player entities
@@ -101,6 +119,7 @@ fn track_movement_events<B>(
 ) where
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
+    let now = Instant::now();
     let local_player_id = world_state.0.identifier();
 
     for ev in evr_keys.read() {
@@ -109,13 +128,19 @@ fn track_movement_events<B>(
             ev.key_code,
             KeyCode::ArrowLeft | KeyCode::ArrowRight | KeyCode::ArrowUp | KeyCode::ArrowDown
         ) {
-            // Update the local player's state to running
-            player_states
-                .states
-                .insert(local_player_id, CharacterState::Running);
-            player_states
-                .last_movement_times
-                .insert(local_player_id, Instant::now());
+            // Get or create player state info
+            let player_info = player_states.players.entry(local_player_id).or_default();
+
+            // Update state to running
+            player_info.state = CharacterState::Running;
+            player_info.last_movement_time = now;
+
+            // Update facing direction based on left/right movement
+            match ev.key_code {
+                KeyCode::ArrowRight => player_info.facing_right = true,
+                KeyCode::ArrowLeft => player_info.facing_right = false,
+                _ => {} // Don't change facing direction for up/down movement
+            }
         }
     }
 }
@@ -127,6 +152,7 @@ fn track_network_movements<B>(
 ) where
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
+    let now = Instant::now();
     let all_players = world_state.0.get_all_players();
     let local_player_id = world_state.0.identifier();
 
@@ -139,22 +165,22 @@ fn track_network_movements<B>(
         let current_pos = (character.position.x, character.position.y);
 
         // Check if this player has moved
-        if let Some(previous_pos) = player_states.previous_positions.get(&peer_id)
-            && *previous_pos != current_pos
-        {
-            // Player has moved, set to running state
-            player_states
-                .states
-                .insert(peer_id, CharacterState::Running);
-            player_states
-                .last_movement_times
-                .insert(peer_id, Instant::now());
+        let player_info = player_states.players.entry(peer_id).or_default();
+        if player_info.previous_position != current_pos {
+            // Player has moved, update state
+            player_info.state = CharacterState::Running;
+            player_info.last_movement_time = now;
+
+            // Update facing direction based on horizontal movement
+            if current_pos.0 > player_info.previous_position.0 {
+                player_info.facing_right = true; // Moving right
+            } else if current_pos.0 < player_info.previous_position.0 {
+                player_info.facing_right = false; // Moving left
+            }
         }
 
-        // Update the previous position
-        player_states
-            .previous_positions
-            .insert(peer_id, current_pos);
+        // Always update the previous position
+        player_info.previous_position = current_pos;
     }
 }
 
@@ -204,23 +230,34 @@ fn execute_animations<B>(
             transform.translation.x = character.position.x as f32 * 24.0;
             transform.translation.y = character.position.y as f32 * 24.0;
 
+            // Get the player's state from the interface state tracking
+            let player_info = player_states.players.get(&player_entity.peer_id);
+            let player_state = player_info.map_or(CharacterState::Idle, |info| info.state.clone());
+            let facing_right = player_info.map_or(true, |info| info.facing_right);
+
+            // Apply sprite flipping based on facing direction
+
+            if facing_right {
+                transform.scale.x = 6.0; // Normal scale
+            } else {
+                transform.scale.x = -6.0; // Flipped scale (negative)
+            }
+            transform.scale.y = 6.0; // Keep Y scale normal
+
             let Some(atlas) = &mut sprite.texture_atlas else {
                 continue;
             };
-
-            // Get the player's state from the interface state tracking
-            let player_state = player_states
-                .states
-                .get(&player_entity.peer_id)
-                .cloned()
-                .unwrap_or(CharacterState::Idle);
 
             // Handle animation based on character state
             match player_state {
                 CharacterState::Idle => {
                     // Set to idle frame (frame 0) and stop animation
-                    atlas.index = 0;
-                    config.frame_timer.pause();
+                    if atlas.index != 0 {
+                        atlas.index = 0;
+                    }
+                    if !config.frame_timer.paused() {
+                        config.frame_timer.pause();
+                    }
                 }
                 CharacterState::Running => {
                     // Resume animation timer if paused
@@ -259,15 +296,15 @@ fn handle_idle_transitions<B>(
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
     let now = Instant::now();
-    let idle_duration = Duration::from_millis(200); // 200ms delay before going idle
+    const IDLE_DURATION: Duration = Duration::from_millis(200); // 200ms delay before going idle
     let all_players = world_state.0.get_all_players();
 
     // Check all players (both local and network) for idle transitions
     for peer_id in all_players.keys() {
-        if let Some(last_movement) = player_states.last_movement_times.get(peer_id)
-            && now.duration_since(*last_movement) > idle_duration
+        if let Some(player_info) = player_states.players.get_mut(peer_id)
+            && now.duration_since(player_info.last_movement_time) > IDLE_DURATION
         {
-            player_states.states.insert(*peer_id, CharacterState::Idle);
+            player_info.state = CharacterState::Idle;
         }
     }
 }
@@ -285,6 +322,13 @@ fn setup<B>(
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
     commands.spawn(Camera2d);
+
+    // Spawn the grass background
+    let image = asset_server.load("textures/background/grass.png");
+    commands.spawn((
+        Sprite { image, ..default() },
+        Transform::from_translation(Vec3::new(0., 0., -1.)).with_scale(Vec3::splat(1.5)),
+    ));
 
     // Load the sprite sheet using the `AssetServer`
     let image = asset_server.load("textures/characters/gabe-idle-run.png");
