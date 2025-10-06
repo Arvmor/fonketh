@@ -27,16 +27,16 @@ impl<I: Eq + Hash, B> PlayersPool<I, B> {
         Self { players }
     }
 
-    /// Removes a player from the players pool
-    pub fn remove_player(&self, identifier: &I) {
-        let mut players = self.players.write().unwrap();
-        players.remove(identifier);
-    }
-
     /// Adds a player to the players pool
     pub fn add_player(&self, identifier: I, player: Character<I, B>) {
         let mut players = self.players.write().unwrap();
         players.insert(identifier, player);
+    }
+
+    /// Removes a player from the players pool
+    pub fn remove_player(&self, identifier: &I) {
+        let mut players = self.players.write().unwrap();
+        players.remove(identifier);
     }
 
     /// Updates a player in the players pool
@@ -153,6 +153,9 @@ where
                     new_player.position = *p;
                     self.players.add_player(*identifier, new_player);
                 }
+            }
+            GameEvent::PlayerFound(f) => {
+                info!("Player {identifier:?} found: {f:?}");
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
