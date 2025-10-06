@@ -1,4 +1,5 @@
 use crate::interface::{Interface, KeyboardInput};
+use crate::mine::Miner;
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent, keyboard_events};
@@ -108,6 +109,9 @@ where
         tx: tokio::sync::mpsc::Sender<(IdentTopic, Vec<u8>)>,
         mut rx: tokio::sync::mpsc::Receiver<Message>,
     ) -> anyhow::Result<()> {
+        // Initialize miner
+        let mut miner = Miner::new(0, Default::default());
+
         while !self.exit_status.is_exit() {
             // Listen for key events
             if let Ok(Some(e)) = rxb.try_recv().map(|e| keyboard_events(e.key_code)) {
@@ -129,6 +133,19 @@ where
                 if let Ok(event) = event {
                     self.update(&m.identifier(), &event);
                 }
+            }
+
+            // Mine a new address
+            if let Some(mined) = miner.run() {
+                info!("Mined address: {mined:?}");
+                let event = GameEvent::PlayerFound(mined);
+                self.update(&self.identifier, &event);
+
+                // Send event to network
+                let data = serde_json::to_vec(&event)?;
+                if let Err(e) = tx.send((topic.clone(), data)).await {
+                    error!("Network error: {:?}", e);
+                };
             }
         }
 
