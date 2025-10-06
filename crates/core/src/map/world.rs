@@ -11,23 +11,35 @@ use std::hash::Hash;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 
+/// Players pool
+///
+/// Used to store all players in the world
 #[derive(Debug)]
 pub struct PlayersPool<I, B> {
     players: RwLock<HashMap<I, Character<I, B>>>,
 }
 
 impl<I: Eq + Hash, B> PlayersPool<I, B> {
+    /// Creates a new players pool
     pub fn new() -> Self {
         let players = Default::default();
 
         Self { players }
     }
 
+    /// Removes a player from the players pool
+    pub fn remove_player(&self, identifier: &I) {
+        let mut players = self.players.write().unwrap();
+        players.remove(identifier);
+    }
+
+    /// Adds a player to the players pool
     pub fn add_player(&self, identifier: I, player: Character<I, B>) {
         let mut players = self.players.write().unwrap();
         players.insert(identifier, player);
     }
 
+    /// Updates a player in the players pool
     pub fn update_player<F, R>(&self, identifier: &I, func: F) -> Option<R>
     where
         F: FnOnce(&mut Character<I, B>) -> R,
@@ -129,18 +141,27 @@ where
     pub fn update(&self, identifier: &PeerId, event: &GameEvent) {
         match event {
             GameEvent::PlayerMovement(p) => {
+                // Update player position
+                info!("Player {identifier:?} moved by: {p:?}");
                 let res = self.players.update_player(identifier, |player| {
                     player.position += *p;
                 });
+
+                // If new player, add to players pool
                 if res.is_none() {
-                    self.players
-                        .add_player(*identifier, Character::new(*identifier, Default::default()));
+                    let mut new_player = Character::new(*identifier, Default::default());
+                    new_player.position = *p;
+                    self.players.add_player(*identifier, new_player);
                 }
-                debug!("Player {:?} moved by: {:?}", identifier, p);
             }
             GameEvent::Quit => {
-                self.exit_status.exit();
-                debug!("Player {:?} quit", identifier);
+                info!("Player {identifier:?} quit");
+                self.players.remove_player(identifier);
+
+                // Quit if the local player quit
+                if identifier == &self.identifier {
+                    self.exit_status.exit();
+                }
             }
         }
     }
