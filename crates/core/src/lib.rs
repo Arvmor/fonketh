@@ -1,6 +1,7 @@
 pub mod events;
 pub mod interface;
 pub mod map;
+pub mod mine;
 pub mod movements;
 pub mod player;
 pub mod utils;
