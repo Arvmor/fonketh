@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub trait Identifier {
     type Id;
@@ -7,14 +7,14 @@ pub trait Identifier {
 }
 
 #[derive(Debug, Default)]
-pub struct ExitStatus(pub(crate) RwLock<bool>);
+pub struct ExitStatus(AtomicBool);
 
 impl ExitStatus {
     pub fn exit(&self) {
-        *self.0.write().unwrap() = true;
+        self.0.store(true, Ordering::Relaxed);
     }
 
     pub fn is_exit(&self) -> bool {
-        *self.0.read().unwrap()
+        self.0.load(Ordering::Relaxed)
     }
 }
