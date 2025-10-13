@@ -1,6 +1,7 @@
 use crate::prelude::*;
+use game_db::network::{NetworkDB, Node};
 use libp2p::{
-    StreamProtocol, Swarm,
+    Multiaddr, StreamProtocol, Swarm,
     futures::StreamExt,
     gossipsub::{IdentTopic, Message},
     identity::Keypair,
@@ -92,10 +93,22 @@ where
     }
 
     async fn run(mut self, topics: Vec<T>) -> Result<()> {
+        // Create the db
+        let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let db = game_db::GameDB::new(&database_url).await?;
+
         info!("Running network");
         self.listen()?;
         for topic in topics {
             self.subscribe(topic)?;
+        }
+
+        // Dial Saved Nodes
+        let nodes = db.get_nodes().await?;
+        for node in nodes {
+            let ip = node.ip.parse::<Multiaddr>()?;
+            self.swarm.dial(ip)?;
+            info!("Added explicit peer {}", node.peer_id);
         }
 
         // Kick it off
@@ -119,6 +132,10 @@ where
                 SwarmEvent::Behaviour(event) = self.swarm.select_next_some() => match event {
                     MyBehaviourEvent::Mdns(mdns::Event::Discovered(list)) => {
                         for (peer_id, multiaddr) in list {
+                            // Record the node
+                            let node = Node::new(peer_id.to_string(), multiaddr.to_string(), None);
+                            db.record_nodes(&[node]).await?;
+
                             info!("mDNS discovered a new peer: {peer_id}");
                             let behaviour = self.swarm.behaviour_mut();
                             behaviour.kad.add_address(&peer_id, multiaddr);
@@ -128,6 +145,9 @@ where
                     }
                     MyBehaviourEvent::Mdns(mdns::Event::Expired(list)) => {
                         for (peer_id, multiaddr) in list {
+                            // Remove the node
+                            db.remove_node(&peer_id.to_string()).await?;
+
                             info!("mDNS discover peer has expired: {peer_id}");
                             let behaviour = self.swarm.behaviour_mut();
                             behaviour.kad.remove_address(&peer_id, &multiaddr);

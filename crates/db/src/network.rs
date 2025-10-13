@@ -5,9 +5,9 @@ use crate::prelude::*;
 /// matches the nodes table
 #[derive(Debug, Default, Type)]
 pub struct Node {
-    peer_id: String,
-    ip: String,
-    created_at: Option<DateTime<Utc>>,
+    pub peer_id: String,
+    pub ip: String,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 impl Node {
@@ -24,7 +24,8 @@ impl Node {
 /// Network DB Trait
 ///
 /// Used to record, remove, get, and get all nodes
-trait NetworkDB {
+#[async_trait]
+pub trait NetworkDB {
     /// Records a node
     async fn record_nodes(&self, nodes: &[Node]) -> anyhow::Result<()>;
 
@@ -38,9 +39,10 @@ trait NetworkDB {
     async fn get_nodes(&self) -> anyhow::Result<Vec<Node>>;
 }
 
+#[async_trait]
 impl<T> NetworkDB for T
 where
-    T: DB,
+    T: DB + Send + Sync,
 {
     async fn get_node(&self, peer_id: &str) -> anyhow::Result<Node> {
         let result = sqlx::query_as!(Node, r#"SELECT * FROM nodes WHERE peer_id = $1"#, peer_id)
@@ -61,8 +63,9 @@ where
     async fn record_nodes(&self, nodes: &[Node]) -> anyhow::Result<()> {
         let result = sqlx::query!(
             r#"INSERT INTO nodes (peer_id, ip, created_at)
-            SELECT * FROM UNNEST($1::node[]) 
-            ON CONFLICT (peer_id) DO NOTHING"#,
+            SELECT * FROM UNNEST($1::node[])
+            ON CONFLICT (peer_id) DO UPDATE
+            SET ip = EXCLUDED.ip"#,
             nodes as &[Node]
         )
         .execute(self.client())

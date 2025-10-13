@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO nodes (peer_id, ip, created_at)\n            SELECT * FROM UNNEST($1::node[]) \n            ON CONFLICT (peer_id) DO NOTHING",
+  "query": "INSERT INTO nodes (peer_id, ip, created_at)\n            SELECT * FROM UNNEST($1::node[])\n            ON CONFLICT (peer_id) DO UPDATE\n            SET ip = EXCLUDED.ip",
   "describe": {
     "columns": [],
     "parameters": {
@@ -37,5 +37,5 @@
     },
     "nullable": []
   },
-  "hash": "ec71a9fbcd2bc673a4e957c0202394bcda9c44f96defe585d3c7857c9b40d631"
+  "hash": "125413c22079038ec64b5609c27a7097286fa8ab8c986eb63471e4ee542a4b10"
 }

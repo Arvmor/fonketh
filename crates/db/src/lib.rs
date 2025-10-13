@@ -4,6 +4,7 @@ pub mod network;
 /// Prelude
 pub mod prelude {
     pub use crate::DB;
+    pub use async_trait::async_trait;
     pub use chrono::{DateTime, Utc};
     pub use sqlx::prelude::Type;
 }

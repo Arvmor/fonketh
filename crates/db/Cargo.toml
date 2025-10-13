@@ -8,3 +8,4 @@ sqlx = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
+async-trait = { workspace = true }

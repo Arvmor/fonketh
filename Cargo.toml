@@ -14,3 +14,4 @@ sqlx = { version = "0.8.6", features = [
     "chrono",
 ] }
 chrono = "0.4.30"
+async-trait = "0.1.89"
