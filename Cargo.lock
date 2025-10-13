@@ -2762,6 +2762,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "serde_json",
  "sqlx",
  "tokio",
 ]

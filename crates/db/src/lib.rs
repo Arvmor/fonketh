@@ -1,12 +1,16 @@
 /// Persists networking data
 pub mod network;
 
+/// Persists State
+pub mod state;
+
 /// Prelude
 pub mod prelude {
     pub use crate::DB;
     pub use async_trait::async_trait;
     pub use chrono::{DateTime, Utc};
     pub use sqlx::prelude::Type;
+    pub use sqlx::types::Json;
 }
 
 /// DB Client

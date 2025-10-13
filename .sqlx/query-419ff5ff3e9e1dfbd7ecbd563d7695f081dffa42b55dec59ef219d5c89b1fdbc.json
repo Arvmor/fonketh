@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO players (player_id, state, created_at)\n            SELECT * FROM UNNEST($1::player[])\n            ON CONFLICT (player_id) DO UPDATE\n            SET state = EXCLUDED.state",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "player[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "player",
+                  "kind": {
+                    "Composite": [
+                      [
+                        "player_id",
+                        "Text"
+                      ],
+                      [
+                        "state",
+                        "Jsonb"
+                      ],
+                      [
+                        "created_at",
+                        "Timestamptz"
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "419ff5ff3e9e1dfbd7ecbd563d7695f081dffa42b55dec59ef219d5c89b1fdbc"
+}
