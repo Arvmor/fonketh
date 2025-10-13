@@ -7,3 +7,4 @@ edition = "2024"
 sqlx = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
+chrono = { workspace = true }

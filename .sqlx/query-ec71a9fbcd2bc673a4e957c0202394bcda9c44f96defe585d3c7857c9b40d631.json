@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nodes (peer_id, ip, created_at)\n            SELECT * FROM UNNEST($1::node[]) \n            ON CONFLICT (peer_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "node[]",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "node",
+                  "kind": {
+                    "Composite": [
+                      [
+                        "peer_id",
+                        "Text"
+                      ],
+                      [
+                        "ip",
+                        "Text"
+                      ],
+                      [
+                        "created_at",
+                        "Timestamptz"
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ec71a9fbcd2bc673a4e957c0202394bcda9c44f96defe585d3c7857c9b40d631"
+}

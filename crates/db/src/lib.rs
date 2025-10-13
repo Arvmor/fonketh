@@ -1,3 +1,13 @@
+/// Persists networking data
+pub mod network;
+
+/// Prelude
+pub mod prelude {
+    pub use crate::DB;
+    pub use chrono::{DateTime, Utc};
+    pub use sqlx::prelude::Type;
+}
+
 /// DB Client
 #[derive(Debug, Clone)]
 pub struct GameDB {
@@ -15,18 +25,20 @@ impl GameDB {
     }
 }
 
+impl From<sqlx::PgPool> for GameDB {
+    fn from(client: sqlx::PgPool) -> Self {
+        Self { client }
+    }
+}
+
 /// Trait for DB Game
 pub trait DB {
-    type Client;
-
     /// returns the client
-    fn client(&self) -> &Self::Client;
+    fn client(&self) -> &sqlx::PgPool;
 }
 
 impl DB for GameDB {
-    type Client = sqlx::PgPool;
-
-    fn client(&self) -> &Self::Client {
+    fn client(&self) -> &sqlx::PgPool {
         &self.client
     }
 }

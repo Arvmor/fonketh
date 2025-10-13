@@ -8,4 +8,9 @@ serde_json = "1.0.145"
 anyhow = "1.0.99"
 tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres"] }
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "chrono",
+] }
+chrono = "0.4.30"
