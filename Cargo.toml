@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/app", "crates/core", "crates/network"]
+members = ["crates/app", "crates/core", "crates/db", "crates/network"]
 
 [workspace.dependencies]
 serde = { version = "1.0.222", features = ["derive"] }
@@ -8,3 +8,4 @@ serde_json = "1.0.145"
 anyhow = "1.0.99"
 tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres"] }
