@@ -55,6 +55,7 @@ pub struct World<I, B> {
     pub exit_status: Arc<ExitStatus>,
     identifier: I,
     players: Arc<PlayersPool<I, B>>,
+    mining_rewards: Arc<RwLock<u32>>,
 }
 
 impl<B> World<PeerId, B>
@@ -68,6 +69,7 @@ where
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
         let identifier = player.identifier();
+        let mining_rewards = Arc::new(RwLock::new(0));
 
         // Add player to players pool
         players.add_player(player.identifier(), player);
@@ -76,6 +78,7 @@ where
             exit_status,
             identifier,
             players,
+            mining_rewards,
         }
     }
 
@@ -173,6 +176,8 @@ where
             }
             GameEvent::PlayerFound(f) => {
                 info!("Player {identifier:?} found: {f:?}");
+                // Increment mining rewards counter
+                *self.mining_rewards.write().unwrap() += 1;
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
@@ -192,6 +197,11 @@ where
         B: Clone,
     {
         self.players.players.read().unwrap().clone()
+    }
+
+    /// Gets the current mining rewards count
+    pub fn get_mining_rewards_count(&self) -> u32 {
+        *self.mining_rewards.read().unwrap()
     }
 }
 

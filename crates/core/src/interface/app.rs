@@ -41,6 +41,7 @@ impl Interface {
             .insert_resource(world)
             .insert_resource(SpawnedPlayers::default())
             .insert_resource(PlayerStates::default())
+            .insert_resource(MiningRewards::default())
             .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
             .add_systems(Startup, setup::<B>)
             .add_systems(Update, capture_key_events)
@@ -51,6 +52,8 @@ impl Interface {
             .add_systems(Update, spawn_new_players::<B>)
             .add_systems(Update, handle_idle_transitions::<B>)
             .add_systems(Update, update_ground_position::<B>)
+            .add_systems(Update, track_mining_events::<B>)
+            .add_systems(Update, update_status_bar)
             .run();
 
         Self { app }
@@ -97,6 +100,12 @@ struct PlayerStates {
     players: HashMap<PeerId, PlayerStateInfo>,
 }
 
+/// Resource to track mining rewards counter
+#[derive(Resource, Default)]
+struct MiningRewards {
+    count: u32,
+}
+
 /// Component to identify player entities
 #[derive(Component)]
 struct PlayerEntity {
@@ -106,6 +115,10 @@ struct PlayerEntity {
 /// Component to identify the ground entity
 #[derive(Component)]
 struct Ground;
+
+/// Component to identify the status bar entity
+#[derive(Component)]
+struct StatusBar;
 
 /// Captures keyboard events and sends them to the core channel
 fn capture_key_events(mut evr_keys: EventReader<KeyboardInput>, sender: Res<KeyEventSender>) {
@@ -330,8 +343,15 @@ fn setup<B>(
 {
     commands.spawn(Camera2d);
 
+    // Spawn the status bar in the top left
+    commands.spawn((
+        Text::new("Mining Rewards: 0"),
+        Transform::from_translation(Vec3::new(-400.0, 300.0, 10.0)),
+        StatusBar,
+    ));
+
     // Spawn the grass background
-    let image = asset_server.load("textures/background/grass.png");
+    let image = asset_server.load("textures/background/full.png");
     commands.spawn((
         Sprite { image, ..default() },
         Transform::from_translation(Vec3::new(0., 0., -1.)).with_scale(Vec3::splat(1.5)),
@@ -447,5 +467,31 @@ fn check_shutdown_conditions<I, B>(
     if world_state.0.exit_status.is_exit() {
         info!("Shutting down Interface");
         writer.write(AppExit::Success);
+    }
+}
+
+/// System to track mining events and update the counter
+fn track_mining_events<B>(
+    world_state: Res<WorldState<PeerId, B>>,
+    mut mining_rewards: ResMut<MiningRewards>,
+) where
+    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+{
+    // Get the current mining rewards count from the world
+    let world_count = world_state.0.get_mining_rewards_count();
+
+    // Update our local counter if it's different
+    if mining_rewards.count != world_count {
+        mining_rewards.count = world_count;
+    }
+}
+
+/// System to update the status bar display
+fn update_status_bar(
+    mining_rewards: Res<MiningRewards>,
+    mut text_query: Query<&mut Text, With<StatusBar>>,
+) {
+    for mut text in text_query.iter_mut() {
+        *text = Text::new(format!("Mining Rewards: {}", mining_rewards.count));
     }
 }
