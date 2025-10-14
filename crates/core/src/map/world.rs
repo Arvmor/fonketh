@@ -1,8 +1,8 @@
 use crate::interface::{Interface, KeyboardInput};
-use crate::mine::Miner;
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent, keyboard_events};
+use game_contract::mine::Miner;
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
 use game_network::prelude::{Keypair, PeerId};
@@ -87,6 +87,12 @@ where
     /// Runs Network and Interface
     pub async fn initialize(self, keypair: Keypair) -> Result<()> {
         info!("Initializing world");
+        let client = game_contract::RewarderClient::new(
+            "https://mainnet.base.org",
+            &keypair.derive_secret(b"rewarder").unwrap(),
+            8453,
+        )
+        .await?;
 
         // Run network loop
         let topic = IdentTopic::new("game_events");

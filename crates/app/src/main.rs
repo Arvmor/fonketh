@@ -1,11 +1,10 @@
 use game_core::prelude::*;
 use game_core::world::{Character, Keypair, World};
-use tracing_subscriber::filter::LevelFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::fmt()
-        .with_max_level(LevelFilter::DEBUG)
+        .with_env_filter("game_core=debug,game_contract=debug,game_network=debug,game_app=debug")
         .init();
 
     // Initialize world

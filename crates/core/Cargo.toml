@@ -5,13 +5,13 @@ edition = "2024"
 
 [dependencies]
 game_network = { path = "../network" }
+game_contract = { path = "../contract" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 bevy = { version = "0.16.1" }
-alloy-primitives = { version = "1.4.0", features = ["serde"] }
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

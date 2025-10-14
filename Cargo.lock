@@ -4042,15 +4042,16 @@ dependencies = [
  "alloy",
  "anyhow",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "game_core"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives",
  "anyhow",
  "bevy",
+ "game_contract",
  "game_network",
  "serde",
  "serde_json",
