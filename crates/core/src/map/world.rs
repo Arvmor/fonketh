@@ -2,11 +2,11 @@ use crate::interface::{Interface, KeyboardInput};
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent, keyboard_events};
-use game_contract::mine::Miner;
+use game_contract::prelude::{Address, U256};
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
 use game_network::prelude::{Keypair, PeerId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::mpsc;
@@ -56,6 +56,7 @@ pub struct World<I, B> {
     identifier: I,
     players: Arc<PlayersPool<I, B>>,
     mining_rewards: Arc<RwLock<u32>>,
+    mined: Arc<RwLock<HashSet<(Address, U256)>>>,
 }
 
 impl<B> World<PeerId, B>
@@ -79,30 +80,29 @@ where
             identifier,
             players,
             mining_rewards,
+            mined: Default::default(),
         }
     }
 
     /// Initializes the world
     ///
     /// Runs Network and Interface
-    pub async fn initialize(self, keypair: Keypair) -> Result<()> {
+    pub async fn initialize(self, private_key: &[u8; 32]) -> Result<()> {
         info!("Initializing world");
-        let client = game_contract::RewarderClient::new(
-            "https://mainnet.base.org",
-            &keypair.derive_secret(b"rewarder").unwrap(),
-            8453,
-        )
-        .await?;
+        let client =
+            game_contract::RewarderClient::new("https://mainnet.base.org", private_key, 8453)
+                .await?;
 
         // Run network loop
         let topic = IdentTopic::new("game_events");
+        let keypair = Keypair::ed25519_from_bytes(*private_key)?;
         let (tx, rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
 
         // Run core loop
         let (txb, rxb) = mpsc::channel();
         let world = self.clone();
         tokio::spawn(async move {
-            world.runner(topic, rxb, tx, rx).await.unwrap();
+            world.runner(topic, rxb, tx, rx, client).await.unwrap();
         });
 
         // Run interface loop
@@ -117,10 +117,8 @@ where
         rxb: mpsc::Receiver<KeyboardInput>,
         tx: tokio::sync::mpsc::Sender<(IdentTopic, Vec<u8>)>,
         mut rx: tokio::sync::mpsc::Receiver<Message>,
+        mut client: game_contract::RewarderClient,
     ) -> anyhow::Result<()> {
-        // Initialize miner
-        let mut miner = Miner::new(0, Default::default());
-
         while !self.exit_status.is_exit() {
             // Listen for key events
             if let Ok(Some(e)) = rxb.try_recv().map(|e| keyboard_events(e.key_code)) {
@@ -145,7 +143,7 @@ where
             }
 
             // Mine a new address
-            if let Some(mined) = miner.run() {
+            if let Some(mined) = client.miner.run() {
                 info!("Mined address: {mined:?}");
                 let event = GameEvent::PlayerFound(mined);
                 self.update(&self.identifier, &event);
@@ -155,6 +153,13 @@ where
                 if let Err(e) = tx.send((topic.clone(), data)).await {
                     error!("Network error: {:?}", e);
                 };
+            }
+
+            // If mined enough, make a claim
+            let mined = self.mined.read().unwrap().clone();
+            if mined.len() >= 10 {
+                info!("Mined enough addresses: {mined:#?}, making a claim");
+                self.mined.write().unwrap().clear();
             }
         }
 
@@ -183,6 +188,7 @@ where
             GameEvent::PlayerFound(f) => {
                 info!("Player {identifier:?} found: {f:?}");
                 // Increment mining rewards counter
+                self.mined.write().unwrap().insert(*f);
                 *self.mining_rewards.write().unwrap() += 1;
             }
             GameEvent::Quit => {

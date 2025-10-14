@@ -5,53 +5,57 @@ use crate::prelude::*;
 /// Responsible for mining the nonce
 #[derive(Debug)]
 pub struct Miner {
-    pub(crate) mined: (Address, B256),
+    pub(crate) factory: Address,
+    pub(crate) miner_address: Address,
     pub(crate) salt: U256,
     pub(crate) init_hash: B256,
+    pub(crate) difficulty: Address,
 }
 
 impl Miner {
-    /// Mining difficulty (Number of leading zeros in the hash)
-    pub const MINING_DIFFICULTY: usize = 2;
-
-    /// Mining Factory Address
-    pub const MINING_FACTORY: Address = Address::ZERO;
-
     /// Creates a new miner
-    pub fn new(salt: impl TryInto<U256>, init_hash: B256) -> Self {
+    pub fn new(
+        factory: Address,
+        miner_address: Address,
+        salt: impl TryInto<U256>,
+        init_hash: B256,
+        difficulty: Address,
+    ) -> Self {
         let salt = salt.try_into().unwrap_or_default();
-        let mined = (
-            address!("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
-            B256::ZERO,
-        );
 
         Self {
-            mined,
+            factory,
+            miner_address,
             salt,
             init_hash,
+            difficulty,
         }
     }
 
     /// Mines a new address
-    pub fn mine(&mut self, salt: U256, init_hash: &B256) -> bool {
-        let salt = B256::from(salt);
-        let mined = Self::MINING_FACTORY.create2(salt, init_hash);
+    pub fn mine(&mut self, nonce: U256, init_hash: B256) -> Option<U256> {
+        let salt = B256::from(nonce);
+        let mined = self.factory.create2(salt, init_hash);
 
-        // Store the best mined address and nonce
-        if mined.iter().take(Self::MINING_DIFFICULTY).all(|x| *x == 0) && mined < self.mined.0 {
+        // If passed the difficulty, return the nonce
+        if mined < self.difficulty {
             info!("Mined address: {mined} with salt: {salt}");
-            self.mined = (mined, salt);
-            return true;
+            return Some(nonce);
         }
 
-        false
+        None
     }
 
     /// Run Miner
-    pub fn run(&mut self) -> Option<(Address, B256)> {
-        let init_hash = self.init_hash;
+    pub fn run(&mut self) -> Option<(Address, U256)> {
+        // Increment the nonce
         self.salt += U256::ONE;
 
-        self.mine(self.salt, &init_hash).then_some(self.mined)
+        // If mined, return the miner address and nonce
+        if let Some(nonce) = self.mine(self.salt, self.init_hash) {
+            return Some((self.miner_address, nonce));
+        }
+
+        None
     }
 }

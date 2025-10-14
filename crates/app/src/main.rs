@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     let keypair = Keypair::ed25519_from_bytes([arg; 32])?;
     let character = Character::new(keypair.public().to_peer_id(), 0);
     let world = World::new(character);
-    world.initialize(keypair).await?;
+    world.initialize(&[arg; 32]).await?;
 
     Ok(())
 }

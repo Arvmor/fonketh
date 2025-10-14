@@ -1,5 +1,5 @@
 /// Miner Logic
-pub mod mine;
+mod mine;
 
 /// Common Types
 pub mod prelude {
@@ -22,6 +22,7 @@ use alloy::{
 pub struct RewarderClient {
     pub provider: DynProvider,
     pub contract: RewarderInstance<DynProvider>,
+    pub miner: mine::Miner,
 }
 
 impl RewarderClient {
@@ -30,14 +31,27 @@ impl RewarderClient {
 
     /// Creates a new Rewarder client
     pub async fn new(url: &str, private_key: &[u8; 32], chain_id: u64) -> anyhow::Result<Self> {
+        let wallet = PrivateKeySigner::from_slice(private_key)?;
+        let address = wallet.address();
         let provider = ProviderBuilder::new()
-            .wallet(PrivateKeySigner::from_slice(private_key)?)
+            .wallet(wallet)
             .with_chain_id(chain_id)
             .connect_http(url.parse()?)
             .erased();
-        let contract = Rewarder::new(Self::ADDRESS, provider.clone());
 
-        Ok(Self { contract, provider })
+        // Get network difficulty
+        let contract = Rewarder::new(Self::ADDRESS, provider.clone());
+        let difficulty = contract.difficulty().call().await?;
+        let init_hash = contract.initHash().call().await?;
+
+        // Create the miner instance
+        let miner = mine::Miner::new(Self::ADDRESS, address, 0, init_hash, difficulty);
+
+        Ok(Self {
+            contract,
+            provider,
+            miner,
+        })
     }
 }
 
