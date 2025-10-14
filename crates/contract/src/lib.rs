@@ -30,7 +30,7 @@ impl RewarderClient {
     pub const ADDRESS: Address = address!("0xd61e2af6a7c347713c478c4e9fef8fe5a22c5459");
 
     /// Creates a new Rewarder client
-    pub async fn new(url: &str, private_key: &[u8; 32], chain_id: u64) -> anyhow::Result<Self> {
+    pub async fn new(url: &str, private_key: &[u8], chain_id: u64) -> anyhow::Result<Self> {
         let wallet = PrivateKeySigner::from_slice(private_key)?;
         let address = wallet.address();
         let provider = ProviderBuilder::new()

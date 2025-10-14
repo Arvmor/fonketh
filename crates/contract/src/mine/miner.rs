@@ -1,3 +1,8 @@
+use alloy::{
+    primitives::keccak256,
+    sol_types::{self, SolValue},
+};
+
 use crate::prelude::*;
 
 /// Miner
@@ -34,7 +39,8 @@ impl Miner {
 
     /// Mines a new address
     pub fn mine(&mut self, nonce: U256, init_hash: B256) -> Option<U256> {
-        let salt = B256::from(nonce);
+        // keccak256(abi.encodePacked(nonce, minerAddress));
+        let salt = keccak256((nonce, self.miner_address).abi_encode_packed());
         let mined = self.factory.create2(salt, init_hash);
 
         // If passed the difficulty, return the nonce

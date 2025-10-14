@@ -87,15 +87,15 @@ where
     /// Initializes the world
     ///
     /// Runs Network and Interface
-    pub async fn initialize(self, private_key: &[u8; 32]) -> Result<()> {
+    pub async fn initialize(self, private_key: Vec<u8>) -> Result<()> {
         info!("Initializing world");
         let client =
-            game_contract::RewarderClient::new("https://mainnet.base.org", private_key, 8453)
+            game_contract::RewarderClient::new("https://mainnet.base.org", &private_key, 8453)
                 .await?;
 
         // Run network loop
         let topic = IdentTopic::new("game_events");
-        let keypair = Keypair::ed25519_from_bytes(*private_key)?;
+        let keypair = Keypair::ed25519_from_bytes(private_key)?;
         let (tx, rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
 
         // Run core loop
@@ -159,7 +159,40 @@ where
             let mined = self.mined.read().unwrap().clone();
             if mined.len() >= 10 {
                 info!("Mined enough addresses: {mined:#?}, making a claim");
-                self.mined.write().unwrap().clear();
+                let data = mined
+                    .into_iter()
+                    .map(|(a, n)| game_contract::Rewarder::MinerData {
+                        minerAddress: a,
+                        nonce: n,
+                    })
+                    .collect::<Vec<_>>();
+
+                if let Ok(data) = data.try_into() {
+                    let contract = client.contract.clone();
+                    tokio::spawn(async move {
+                        let hash = match contract.processMiningArray(data).send().await {
+                            Ok(hash) => {
+                                info!("Process mining array success: {hash:?}");
+                                hash
+                            }
+                            Err(e) => return error!("Process mining array error: {e}"),
+                        };
+
+                        let tx = match hash.register().await {
+                            Ok(tx) => {
+                                info!("Register success {tx:?}");
+                                tx
+                            }
+                            Err(e) => return error!("Register error: {e}"),
+                        };
+
+                        match tx.await {
+                            Ok(tx) => info!("Wait success {tx:?}"),
+                            Err(e) => error!("TX error: {e}"),
+                        };
+                    });
+                    self.mined.write().unwrap().clear();
+                }
             }
         }
 

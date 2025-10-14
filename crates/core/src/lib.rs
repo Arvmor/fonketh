@@ -11,6 +11,7 @@ pub mod world {
     pub use crate::map::World;
     pub use crate::movements::keyboard_events;
     pub use crate::player::Character;
+    pub use game_contract::prelude::B256;
     pub use game_network::prelude::Keypair;
 }
 
