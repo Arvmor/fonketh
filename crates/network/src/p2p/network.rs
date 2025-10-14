@@ -50,7 +50,6 @@ where
                 yamux::Config::default,
             )?
             .with_quic()
-            .with_dns()?
             // Create behavior.
             .with_behaviour(|key| {
                 // Set a custom gossipsub configuration

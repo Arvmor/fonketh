@@ -9,7 +9,6 @@ libp2p = { version = "0.56.0", features = [
     "tokio",
     "gossipsub",
     "mdns",
-    "dns",
     "noise",
     "macros",
     "tcp",
