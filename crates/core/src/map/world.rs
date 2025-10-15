@@ -2,10 +2,12 @@ use crate::interface::{Interface, KeyboardInput};
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent, keyboard_events};
+use game_contract::Rewarder;
+use game_contract::prelude::{Address, U256};
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
 use game_network::prelude::{Keypair, PeerId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::mpsc;
@@ -54,6 +56,8 @@ pub struct World<I, B> {
     pub exit_status: Arc<ExitStatus>,
     identifier: I,
     players: Arc<PlayersPool<I, B>>,
+    mining_rewards: Arc<RwLock<u32>>,
+    mined: Arc<RwLock<HashSet<(Address, U256)>>>,
 }
 
 impl<B> World<PeerId, B>
@@ -67,6 +71,8 @@ where
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
         let identifier = player.identifier();
+        let mining_rewards = Arc::new(Default::default());
+        let mined = Arc::new(Default::default());
 
         // Add player to players pool
         players.add_player(player.identifier(), player);
@@ -75,24 +81,30 @@ where
             exit_status,
             identifier,
             players,
+            mining_rewards,
+            mined,
         }
     }
 
     /// Initializes the world
     ///
     /// Runs Network and Interface
-    pub async fn initialize(self, keypair: Keypair) -> Result<()> {
+    pub async fn initialize(self, private_key: Vec<u8>) -> Result<()> {
         info!("Initializing world");
+        let rpc = "https://mainnet.base.org";
+        let chain_id = 8453;
+        let client = game_contract::RewarderClient::new(rpc, &private_key, chain_id).await?;
 
         // Run network loop
         let topic = IdentTopic::new("game_events");
+        let keypair = Keypair::ed25519_from_bytes(private_key)?;
         let (tx, rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
 
         // Run core loop
         let (txb, rxb) = mpsc::channel();
         let world = self.clone();
         tokio::spawn(async move {
-            world.runner(topic, rxb, tx, rx).await.unwrap();
+            world.runner(topic, rxb, tx, rx, client).await.unwrap();
         });
 
         // Run interface loop
@@ -107,6 +119,7 @@ where
         rxb: mpsc::Receiver<KeyboardInput>,
         tx: tokio::sync::mpsc::Sender<(IdentTopic, Vec<u8>)>,
         mut rx: tokio::sync::mpsc::Receiver<Message>,
+        mut client: game_contract::RewarderClient,
     ) -> anyhow::Result<()> {
         while !self.exit_status.is_exit() {
             // Listen for key events
@@ -129,6 +142,45 @@ where
                 if let Ok(event) = event {
                     self.update(&m.identifier(), &event);
                 }
+            }
+
+            // Mine a new address
+            if let Some(mined) = client.miner.run() {
+                info!("Mined address: {mined:?}");
+                let event = GameEvent::PlayerFound(mined);
+                self.update(&self.identifier, &event);
+
+                // Send event to network
+                let data = serde_json::to_vec(&event)?;
+                if let Err(e) = tx.send((topic.clone(), data)).await {
+                    error!("Network error: {:?}", e);
+                };
+            }
+
+            // If mined enough
+            // Spawn Claim Transaction
+            if self.get_mined_count() >= 10
+                && let Ok(batch) = self.drain_mined_batch().try_into()
+            {
+                let contract = client.contract.clone();
+                tokio::spawn(async move {
+                    // Register the transaction
+                    let pending_tx = match contract.processMiningArray(batch).send().await {
+                        Ok(pending) => pending.register().await,
+                        Err(e) => return error!("Claim transaction error: {e}"),
+                    };
+
+                    // Wait for the transaction to be mined
+                    let tx = match pending_tx {
+                        Ok(tx) => tx.await,
+                        Err(e) => return error!("Pending Transaction error: {e}"),
+                    };
+
+                    match tx {
+                        Ok(tx) => info!("Claimed successfully {tx:?}"),
+                        Err(e) => error!("Claimed failed error: {e}"),
+                    };
+                });
             }
         }
 
@@ -156,6 +208,9 @@ where
             }
             GameEvent::PlayerFound(f) => {
                 info!("Player {identifier:?} found: {f:?}");
+                // Increment mining rewards counter
+                self.mined.write().unwrap().insert(*f);
+                *self.mining_rewards.write().unwrap() += 1;
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
@@ -175,6 +230,29 @@ where
         B: Clone,
     {
         self.players.players.read().unwrap().clone()
+    }
+
+    /// Gets the current mining rewards count
+    pub fn get_mining_rewards_count(&self) -> u32 {
+        *self.mining_rewards.read().unwrap()
+    }
+
+    /// Gets the current mined addresses
+    pub fn drain_mined_batch(&self) -> Vec<Rewarder::MinerData> {
+        self.mined
+            .write()
+            .unwrap()
+            .drain()
+            .map(|(a, n)| Rewarder::MinerData {
+                minerAddress: a,
+                nonce: n,
+            })
+            .collect()
+    }
+
+    /// Get the mined addresses count
+    pub fn get_mined_count(&self) -> usize {
+        self.mined.read().unwrap().len()
     }
 }
 

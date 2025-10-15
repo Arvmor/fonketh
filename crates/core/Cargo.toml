@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 game_network = { path = "../network" }
+game_contract = { path = "../contract" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
