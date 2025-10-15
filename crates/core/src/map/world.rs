@@ -2,6 +2,7 @@ use crate::interface::{Interface, KeyboardInput};
 use crate::prelude::*;
 use crate::utils::{ExitStatus, Identifier};
 use crate::world::{Character, GameEvent, keyboard_events};
+use game_contract::Rewarder;
 use game_contract::prelude::{Address, U256};
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
@@ -70,7 +71,8 @@ where
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
         let identifier = player.identifier();
-        let mining_rewards = Arc::new(RwLock::new(0));
+        let mining_rewards = Arc::new(Default::default());
+        let mined = Arc::new(Default::default());
 
         // Add player to players pool
         players.add_player(player.identifier(), player);
@@ -80,7 +82,7 @@ where
             identifier,
             players,
             mining_rewards,
-            mined: Default::default(),
+            mined,
         }
     }
 
@@ -89,9 +91,9 @@ where
     /// Runs Network and Interface
     pub async fn initialize(self, private_key: Vec<u8>) -> Result<()> {
         info!("Initializing world");
-        let client =
-            game_contract::RewarderClient::new("https://mainnet.base.org", &private_key, 8453)
-                .await?;
+        let rpc = "https://mainnet.base.org";
+        let chain_id = 8453;
+        let client = game_contract::RewarderClient::new(rpc, &private_key, chain_id).await?;
 
         // Run network loop
         let topic = IdentTopic::new("game_events");
@@ -155,44 +157,30 @@ where
                 };
             }
 
-            // If mined enough, make a claim
-            let mined = self.mined.read().unwrap().clone();
-            if mined.len() >= 10 {
-                info!("Mined enough addresses: {mined:#?}, making a claim");
-                let data = mined
-                    .into_iter()
-                    .map(|(a, n)| game_contract::Rewarder::MinerData {
-                        minerAddress: a,
-                        nonce: n,
-                    })
-                    .collect::<Vec<_>>();
+            // If mined enough
+            // Spawn Claim Transaction
+            if self.get_mined_count() >= 10
+                && let Ok(batch) = self.drain_mined_batch().try_into()
+            {
+                let contract = client.contract.clone();
+                tokio::spawn(async move {
+                    // Register the transaction
+                    let pending_tx = match contract.processMiningArray(batch).send().await {
+                        Ok(pending) => pending.register().await,
+                        Err(e) => return error!("Claim transaction error: {e}"),
+                    };
 
-                if let Ok(data) = data.try_into() {
-                    let contract = client.contract.clone();
-                    tokio::spawn(async move {
-                        let hash = match contract.processMiningArray(data).send().await {
-                            Ok(hash) => {
-                                info!("Process mining array success: {hash:?}");
-                                hash
-                            }
-                            Err(e) => return error!("Process mining array error: {e}"),
-                        };
+                    // Wait for the transaction to be mined
+                    let tx = match pending_tx {
+                        Ok(tx) => tx.await,
+                        Err(e) => return error!("Pending Transaction error: {e}"),
+                    };
 
-                        let tx = match hash.register().await {
-                            Ok(tx) => {
-                                info!("Register success {tx:?}");
-                                tx
-                            }
-                            Err(e) => return error!("Register error: {e}"),
-                        };
-
-                        match tx.await {
-                            Ok(tx) => info!("Wait success {tx:?}"),
-                            Err(e) => error!("TX error: {e}"),
-                        };
-                    });
-                    self.mined.write().unwrap().clear();
-                }
+                    match tx {
+                        Ok(tx) => info!("Claimed successfully {tx:?}"),
+                        Err(e) => error!("Claimed failed error: {e}"),
+                    };
+                });
             }
         }
 
@@ -247,6 +235,24 @@ where
     /// Gets the current mining rewards count
     pub fn get_mining_rewards_count(&self) -> u32 {
         *self.mining_rewards.read().unwrap()
+    }
+
+    /// Gets the current mined addresses
+    pub fn drain_mined_batch(&self) -> Vec<Rewarder::MinerData> {
+        self.mined
+            .write()
+            .unwrap()
+            .drain()
+            .map(|(a, n)| Rewarder::MinerData {
+                minerAddress: a,
+                nonce: n,
+            })
+            .collect()
+    }
+
+    /// Get the mined addresses count
+    pub fn get_mined_count(&self) -> usize {
+        self.mined.read().unwrap().len()
     }
 }
 

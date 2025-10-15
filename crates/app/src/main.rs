@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    // Initialize world
+    // Read Arguments
     let arg = std::env::args()
         .nth(1)
         .expect("Provide Path to Private Key");
@@ -17,6 +17,8 @@ async fn main() -> Result<()> {
     // Load private key
     let private_key = std::fs::read_to_string(arg)?.parse::<B256>()?;
     let keypair = Keypair::ed25519_from_bytes(private_key)?;
+
+    // Initialize world
     let character = Character::new(keypair.public().to_peer_id(), 0);
     let world = World::new(character);
     world.initialize(private_key.to_vec()).await?;
