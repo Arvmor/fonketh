@@ -10,13 +10,14 @@ async fn main() -> Result<()> {
         .init();
 
     // Read Arguments
-    let arg = std::env::args()
+    let load_key = std::env::args()
         .nth(1)
+        .and_then(|f| std::fs::read_to_string(f).ok())
         .or(std::env::var("PRIVATE_KEY").ok())
-        .expect("Provide Path to Private Key");
+        .expect("Provide Path to Private Key or set PRIVATE_KEY environment variable");
 
     // Load private key
-    let private_key = std::fs::read_to_string(arg)?.parse::<B256>()?;
+    let private_key = load_key.parse::<B256>()?;
     let keypair = Keypair::ed25519_from_bytes(private_key)?;
 
     // Initialize world
