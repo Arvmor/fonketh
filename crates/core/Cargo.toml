@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["interface"]
-interface = ["bevy"]
+default = []
+interface = []
 
 [dependencies]
 game_network = { path = "../network" }
 game_contract = { path = "../contract" }
-bevy = { version = "0.16.1", optional = true }
+bevy = "0.16.1"
 tokio.workspace = true
 anyhow.workspace = true
 serde.workspace = true

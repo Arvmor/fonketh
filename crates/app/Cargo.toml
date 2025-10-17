@@ -8,6 +8,6 @@ name = "app"
 path = "src/main.rs"
 
 [dependencies]
-game_core = { path = "../core" }
+game_core = { path = "../core", features = [] }
 tracing-subscriber.workspace = true
 tokio.workspace = true

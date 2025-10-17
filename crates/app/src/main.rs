@@ -12,6 +12,7 @@ async fn main() -> Result<()> {
     // Read Arguments
     let arg = std::env::args()
         .nth(1)
+        .or(std::env::var("PRIVATE_KEY").ok())
         .expect("Provide Path to Private Key");
 
     // Load private key

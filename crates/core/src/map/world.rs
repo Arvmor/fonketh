@@ -108,7 +108,12 @@ where
         });
 
         // Run interface loop
+        #[cfg(feature = "interface")]
         Interface::run(txb, self);
+
+        #[cfg(not(feature = "interface"))]
+        tokio::signal::ctrl_c().await.unwrap();
+
         Ok(())
     }
 
@@ -145,6 +150,7 @@ where
             }
 
             // Mine a new address
+            #[cfg(feature = "interface")]
             if let Some(mined) = client.miner.run() {
                 info!("Mined address: {mined:?}");
                 let event = GameEvent::PlayerFound(mined);
