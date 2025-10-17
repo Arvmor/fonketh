@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { workspace = true }
 libp2p = { version = "0.56.0", features = [
     "tokio",
     "gossipsub",
@@ -16,8 +15,9 @@ libp2p = { version = "0.56.0", features = [
     "quic",
     "kad",
 ] }
-anyhow = { workspace = true }
-tracing = { workspace = true }
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
-tracing-subscriber = "0.3.20"
+tracing-subscriber.workspace = true
