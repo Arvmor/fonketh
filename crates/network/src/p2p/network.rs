@@ -91,7 +91,7 @@ where
     }
 
     async fn run(mut self, topics: Vec<T>) -> Result<()> {
-        info!("Running network");
+        info!("Running network PeerID: {}", self.swarm.local_peer_id());
         self.listen()?;
         for topic in topics {
             self.subscribe(topic)?;

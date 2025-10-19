@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-alloy = { version = "1.0.38", features = ["full"] }
+alloy = "1.0.38"
 anyhow.workspace = true
 tokio.workspace = true
 tracing.workspace = true

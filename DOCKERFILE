@@ -1,0 +1,18 @@
+FROM rust:latest AS builder
+
+RUN apt-get update && apt-get install -y \
+    libasound2-dev \
+    libudev-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY . .
+
+RUN cargo build --release --bin app
+
+FROM debian:latest
+
+COPY --from=builder /app/target/release/app /usr/local/bin/app
+
+CMD ["app"]
