@@ -10,6 +10,7 @@ interface = []
 [dependencies]
 game_network.workspace = true
 game_contract.workspace = true
+game_primitives.workspace = true
 bevy = "0.16.1"
 tokio.workspace = true
 anyhow.workspace = true

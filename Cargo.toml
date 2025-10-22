@@ -1,6 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["crates/app", "crates/contract", "crates/core", "crates/network"]
+members = [
+    "crates/app",
+    "crates/contract",
+    "crates/core",
+    "crates/primitives",
+    "crates/interface",
+    "crates/network",
+]
 
 [workspace.dependencies]
 serde = { version = "1.0.222", features = ["derive"] }
@@ -14,3 +21,5 @@ tracing-subscriber = "0.3.20"
 game_contract = { path = "crates/contract" }
 game_core = { path = "crates/core" }
 game_network = { path = "crates/network" }
+game_primitives = { path = "crates/primitives" }
+game_interface = { path = "crates/interface" }
