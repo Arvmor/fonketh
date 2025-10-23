@@ -1,14 +1,12 @@
-use std::{
-    collections::HashMap,
-    hash::Hash,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Identifier Trait
 ///
 /// Used to identify a unique entity in the system
-pub trait Identifier: Send + Sync + 'static {
-    type Id: Clone + Eq + Hash + Send + Sync + 'static;
+pub trait Identifier {
+    type Id: Clone;
 
     fn identifier(&self) -> Self::Id;
 }
@@ -34,10 +32,10 @@ impl ExitStatus {
 /// World state
 ///
 /// Used to store the state of the world
-pub trait WorldState: Identifier + Send + Sync + 'static {
+pub trait WorldState: Identifier {
     type Player: Player;
 
-    fn exit_status(&self) -> ExitStatus;
+    fn exit_status(&self) -> Arc<ExitStatus>;
 
     fn get_all_players(&self) -> HashMap<Self::Id, Self::Player>;
 
@@ -47,8 +45,8 @@ pub trait WorldState: Identifier + Send + Sync + 'static {
 /// Player
 ///
 /// Used to store the state of a player
-pub trait Player: Identifier + Position {
-    type Position: Position;
+pub trait Player: Identifier {
+    type Position: Position + Clone;
 
     fn position(&self) -> Self::Position;
 }
@@ -57,6 +55,6 @@ pub trait Player: Identifier + Position {
 ///
 /// Used to store the position of a player
 pub trait Position {
-    fn x(&self) -> f32;
-    fn y(&self) -> f32;
+    fn x(&self) -> f64;
+    fn y(&self) -> f64;
 }

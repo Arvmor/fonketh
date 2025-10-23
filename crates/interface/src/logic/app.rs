@@ -3,6 +3,7 @@ pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::prelude::*;
 use game_primitives::{Identifier, Player, Position, WorldState};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
@@ -24,7 +25,12 @@ impl Interface {
     /// Runs the Bevy app
     ///
     /// Creates a new Bevy app and runs it
-    pub fn run<W: WorldState>(channel: Sender<KeyboardInput>, world: W) -> Self {
+    pub fn run<W, P, I>(channel: Sender<KeyboardInput>, world: W) -> Self
+    where
+        W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+        P: Identifier<Id = I> + Player<Position: Position> + Sync + Send + 'static,
+        I: Sync + Send + 'static + Clone + Hash + Eq,
+    {
         let sender = KeyEventSender(channel);
         let world = WorldStateResource(world);
 
@@ -32,19 +38,19 @@ impl Interface {
             // Channel to pass Events to core
             .insert_resource(sender)
             .insert_resource(world)
-            .insert_resource(SpawnedPlayers::<W::Player>::new())
-            .insert_resource(PlayerStates::<W::Player>::new())
+            .insert_resource(SpawnedPlayers::<P>::new())
+            .insert_resource(PlayerStates::<P>::new())
             .insert_resource(MiningRewards::default())
             .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
-            .add_systems(Startup, setup::<W>)
+            .add_systems(Startup, setup::<W, P, I>)
             .add_systems(Update, capture_key_events)
             .add_systems(Update, check_shutdown_conditions::<W>) // Add this system
-            .add_systems(Update, track_movement_events::<W>)
-            .add_systems(Update, track_network_movements::<W>)
-            .add_systems(Update, execute_animations::<W>)
-            .add_systems(Update, spawn_new_players::<W>)
-            .add_systems(Update, handle_idle_transitions::<W>)
-            .add_systems(Update, update_ground_position::<W>)
+            .add_systems(Update, track_movement_events::<W, P, I>)
+            .add_systems(Update, track_network_movements::<W, P, I>)
+            .add_systems(Update, execute_animations::<W, P, I>)
+            .add_systems(Update, spawn_new_players::<W, P, I>)
+            .add_systems(Update, handle_idle_transitions::<W, P, I>)
+            .add_systems(Update, update_ground_position::<W, P, I>)
             .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
             .run();
@@ -59,7 +65,7 @@ struct KeyEventSender(Sender<KeyboardInput>);
 
 /// Resource to send world state to the interface
 #[derive(Resource)]
-struct WorldStateResource<W: WorldState>(W);
+struct WorldStateResource<W: WorldState + Send + Sync + 'static>(W);
 
 /// Resource to track which players have been spawned in the UI
 #[derive(Resource, Default)]
@@ -142,11 +148,15 @@ fn capture_key_events(mut evr_keys: EventReader<KeyboardInput>, sender: Res<KeyE
 }
 
 /// Tracks movement events and updates player states within the interface
-fn track_movement_events<W: WorldState>(
+fn track_movement_events<W, P, I>(
     mut evr_keys: EventReader<KeyboardInput>,
     world_state: Res<WorldStateResource<W>>,
-    mut player_states: ResMut<PlayerStates<W>>,
-) {
+    mut player_states: ResMut<PlayerStates<P>>,
+) where
+    W: WorldState<Id = I> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
+{
     let now = Instant::now();
 
     for ev in evr_keys.read() {
@@ -176,10 +186,14 @@ fn track_movement_events<W: WorldState>(
 }
 
 /// Tracks network player movements by comparing current positions with previous positions
-fn track_network_movements<W: WorldState>(
+fn track_network_movements<W, P, I>(
     world_state: Res<WorldStateResource<W>>,
-    mut player_states: ResMut<PlayerStates<W>>,
-) {
+    mut player_states: ResMut<PlayerStates<P>>,
+) where
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player<Position: Position> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
+{
     let now = Instant::now();
     let all_players = world_state.0.get_all_players();
     let local_player_id = world_state.0.identifier();
@@ -240,29 +254,33 @@ impl AnimationConfig {
 
 /// Combined system to update player positions and execute animations
 /// This system handles both position updates and animation frame progression for all players
-fn execute_animations<W: WorldState>(
+fn execute_animations<W, P, I>(
     time: Res<Time>,
     world_state: Res<WorldStateResource<W>>,
-    player_states: Res<PlayerStates<W>>,
+    player_states: Res<PlayerStates<P>>,
     mut player_query: Query<(
-        &PlayerEntity<W>,
+        &PlayerEntity<P>,
         &mut AnimationConfig,
         &mut Sprite,
         &mut Transform,
     )>,
-) {
+) where
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player<Position: Position> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Hash + Eq,
+{
     let all_players = world_state.0.get_all_players();
 
     for (player_entity, mut config, mut sprite, mut transform) in player_query.iter_mut() {
         // Update position based on the character's position in the world state
         if let Some(character) = all_players.get(&player_entity.peer_id) {
-            transform.translation.x = character.position().x() * 24.0;
-            transform.translation.y = character.position().y() * 24.0;
+            transform.translation.x = character.position().x() as f32 * MAGIC_SPEED;
+            transform.translation.y = character.position().y() as f32 * MAGIC_SPEED;
 
             // Get the player's state from the interface state tracking
             let player_info = player_states.players.get(&player_entity.peer_id);
             let player_state = player_info.map_or(CharacterState::Idle, |info| info.state.clone());
-            let facing_right = player_info.map_or(true, |info| info.facing_right);
+            let facing_right = player_info.is_none_or(|info| info.facing_right);
 
             // Apply sprite flipping based on facing direction
 
@@ -318,10 +336,14 @@ fn execute_animations<W: WorldState>(
 
 /// System to handle transitions from running to idle state
 /// This system automatically sets characters back to idle after they stop moving
-fn handle_idle_transitions<W: WorldState>(
+fn handle_idle_transitions<W, P, I>(
     world_state: Res<WorldStateResource<W>>,
-    mut player_states: ResMut<PlayerStates<W>>,
-) {
+    mut player_states: ResMut<PlayerStates<P>>,
+) where
+    W: WorldState<Id = I> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
+{
     let now = Instant::now();
     let all_players = world_state.0.get_all_players();
 
@@ -338,13 +360,17 @@ fn handle_idle_transitions<W: WorldState>(
 #[derive(Component)]
 struct RightSprite;
 
-fn setup<W: WorldState>(
+fn setup<W, P, I>(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    mut spawned_players: ResMut<SpawnedPlayers<W>>,
+    mut spawned_players: ResMut<SpawnedPlayers<P>>,
     world_state: Res<WorldStateResource<W>>,
-) {
+) where
+    W: WorldState<Id = I> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
+{
     commands.spawn(Camera2d);
 
     // Spawn the status bar in the top left
@@ -389,13 +415,17 @@ fn setup<W: WorldState>(
 }
 
 /// System to spawn new player characters in the UI
-fn spawn_new_players<W: WorldState>(
+fn spawn_new_players<W, P, I>(
     mut commands: Commands,
     world_state: Res<WorldStateResource<W>>,
-    mut spawned_players: ResMut<SpawnedPlayers<W>>,
+    mut spawned_players: ResMut<SpawnedPlayers<P>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-) {
+) where
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player<Position: Position> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
+{
     let all_players = world_state.0.get_all_players();
 
     for (peer_id, character) in all_players {
@@ -423,8 +453,8 @@ fn spawn_new_players<W: WorldState>(
                 ..default()
             },
             Transform::from_scale(Vec3::splat(6.0)).with_translation(Vec3::new(
-                character.position().x() * MAGIC_SPEED,
-                character.position().y() * MAGIC_SPEED,
+                character.position().x() as f32 * MAGIC_SPEED,
+                character.position().y() as f32 * MAGIC_SPEED,
                 0.0,
             )),
             RightSprite,
@@ -435,17 +465,21 @@ fn spawn_new_players<W: WorldState>(
 }
 
 /// System to update ground position based on local player movement
-fn update_ground_position<W: WorldState>(
+fn update_ground_position<W, P, I>(
     world_state: Res<WorldStateResource<W>>,
     mut ground_query: Query<&mut Transform, With<Ground>>,
-) {
+) where
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player<Position: Position> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
+{
     let local_player_id = world_state.0.identifier();
     let all_players = world_state.0.get_all_players();
 
     // Get the local player's position
     if let Some(local_player) = all_players.get(&local_player_id) {
-        let player_x = local_player.position().x() * MAGIC_GROUND_SPEED;
-        let player_y = local_player.position().y() * MAGIC_GROUND_SPEED;
+        let player_x = local_player.position().x() as f32 * MAGIC_GROUND_SPEED;
+        let player_y = local_player.position().y() as f32 * MAGIC_GROUND_SPEED;
 
         // Update ground position to follow the player
         for mut ground_transform in ground_query.iter_mut() {
@@ -456,7 +490,7 @@ fn update_ground_position<W: WorldState>(
 }
 
 /// System to check for external shutdown conditions
-fn check_shutdown_conditions<W: WorldState>(
+fn check_shutdown_conditions<W: WorldState + Sync + Send + 'static>(
     mut writer: EventWriter<AppExit>,
     world_state: Res<WorldStateResource<W>>,
 ) {
@@ -468,7 +502,7 @@ fn check_shutdown_conditions<W: WorldState>(
 }
 
 /// System to track mining events and update the counter
-fn track_mining_events<W: WorldState>(
+fn track_mining_events<W: WorldState + Sync + Send + 'static>(
     world_state: Res<WorldStateResource<W>>,
     mut mining_rewards: ResMut<MiningRewards>,
 ) {

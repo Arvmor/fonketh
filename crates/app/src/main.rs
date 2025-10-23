@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     let keypair = Keypair::ed25519_from_bytes(private_key)?;
 
     // Initialize world
-    let character = Character::new(keypair.public().to_peer_id(), 0);
+    let character = Character::new(keypair.public().to_peer_id(), 0, (0, 0));
     let world = World::new(character);
     world.initialize(private_key.to_vec()).await?;
 
