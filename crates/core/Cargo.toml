@@ -3,15 +3,21 @@ name = "game_core"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+interface = ["game_interface"]
+
 [dependencies]
-game_network = { path = "../network" }
-game_contract = { path = "../contract" }
-tokio = { workspace = true }
-anyhow = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-bevy = { version = "0.16.1" }
+game_network.workspace = true
+game_contract.workspace = true
+game_primitives.workspace = true
+game_interface = { workspace = true, optional = true }
+bevy = "0.16.1"
+tokio.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

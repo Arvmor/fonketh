@@ -1,9 +1,7 @@
-use crate::interface::{FPS, IDLE_DURATION, MAGIC_GROUND_SPEED, MAGIC_SPEED};
-use crate::utils::Identifier;
-use crate::world::World as WorldCore;
+use crate::logic::{FPS, IDLE_DURATION, MAGIC_GROUND_SPEED, MAGIC_SPEED};
 pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::prelude::*;
-use game_network::prelude::PeerId;
+use game_primitives::{Identifier, Player, Position, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::mpsc::Sender;
@@ -27,32 +25,32 @@ impl Interface {
     /// Runs the Bevy app
     ///
     /// Creates a new Bevy app and runs it
-    pub fn run<I, B>(channel: Sender<KeyboardInput>, world: WorldCore<I, B>) -> Self
+    pub fn run<W, P, I>(channel: Sender<KeyboardInput>, world: W) -> Self
     where
-        B: Clone + Eq + Hash + Send + Sync + 'static + Default,
-        I: Send + Sync + 'static,
+        W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+        P: Identifier<Id = I> + Player + Sync + Send + 'static,
+        I: Sync + Send + 'static + Clone + Hash + Eq,
     {
         let sender = KeyEventSender(channel);
-        let world = WorldState(world);
+        let world = WorldStateResource(world);
 
         let app = App::new()
             // Channel to pass Events to core
             .insert_resource(sender)
             .insert_resource(world)
-            .insert_resource(SpawnedPlayers::default())
-            .insert_resource(PlayerStates::default())
+            .insert_resource(SpawnedPlayers::<P>::new())
+            .insert_resource(PlayerStates::<P>::new())
             .insert_resource(MiningRewards::default())
             .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
-            .add_systems(Startup, setup::<B>)
+            .add_systems(Startup, setup::<W, P, I>)
             .add_systems(Update, capture_key_events)
-            .add_systems(Update, check_shutdown_conditions::<I, B>) // Add this system
-            .add_systems(Update, track_movement_events::<B>)
-            .add_systems(Update, track_network_movements::<B>)
-            .add_systems(Update, execute_animations::<B>)
-            .add_systems(Update, spawn_new_players::<B>)
-            .add_systems(Update, handle_idle_transitions::<B>)
-            .add_systems(Update, update_ground_position::<B>)
-            .add_systems(Update, track_mining_events::<B>)
+            .add_systems(Update, check_shutdown_conditions::<W>) // Add this system
+            .add_systems(Update, track_network_movements::<W, P, I>)
+            .add_systems(Update, execute_animations::<W, P, I>)
+            .add_systems(Update, spawn_new_players::<W, P, I>)
+            .add_systems(Update, handle_idle_transitions::<W, P, I>)
+            .add_systems(Update, update_ground_position::<W, P, I>)
+            .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
             .run();
 
@@ -66,12 +64,20 @@ struct KeyEventSender(Sender<KeyboardInput>);
 
 /// Resource to send world state to the interface
 #[derive(Resource)]
-struct WorldState<I, B>(WorldCore<I, B>);
+struct WorldStateResource<W: WorldState + Send + Sync + 'static>(W);
 
 /// Resource to track which players have been spawned in the UI
 #[derive(Resource, Default)]
-struct SpawnedPlayers {
-    spawned: HashSet<PeerId>,
+struct SpawnedPlayers<I: Identifier> {
+    spawned: HashSet<I::Id>,
+}
+
+impl<I: Identifier> SpawnedPlayers<I> {
+    fn new() -> Self {
+        Self {
+            spawned: Default::default(),
+        }
+    }
 }
 
 /// Player state information bundled together for better cache locality
@@ -96,8 +102,16 @@ impl Default for PlayerStateInfo {
 
 /// Resource to track player states and movement times within the interface
 #[derive(Resource, Default)]
-struct PlayerStates {
-    players: HashMap<PeerId, PlayerStateInfo>,
+struct PlayerStates<I: Identifier> {
+    players: HashMap<I::Id, PlayerStateInfo>,
+}
+
+impl<I: Identifier> PlayerStates<I> {
+    fn new() -> Self {
+        Self {
+            players: Default::default(),
+        }
+    }
 }
 
 /// Resource to track mining rewards counter
@@ -108,8 +122,8 @@ struct MiningRewards {
 
 /// Component to identify player entities
 #[derive(Component)]
-struct PlayerEntity {
-    peer_id: PeerId,
+struct PlayerEntity<I: Identifier> {
+    peer_id: I::Id,
 }
 
 /// Component to identify the ground entity
@@ -132,58 +146,23 @@ fn capture_key_events(mut evr_keys: EventReader<KeyboardInput>, sender: Res<KeyE
     }
 }
 
-/// Tracks movement events and updates player states within the interface
-fn track_movement_events<B>(
-    mut evr_keys: EventReader<KeyboardInput>,
-    world_state: Res<WorldState<PeerId, B>>,
-    mut player_states: ResMut<PlayerStates>,
-) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
-{
-    let now = Instant::now();
-    let local_player_id = world_state.0.identifier();
-
-    for ev in evr_keys.read() {
-        // Check if this is a movement key
-        if matches!(
-            ev.key_code,
-            KeyCode::ArrowLeft | KeyCode::ArrowRight | KeyCode::ArrowUp | KeyCode::ArrowDown
-        ) {
-            // Get or create player state info
-            let player_info = player_states.players.entry(local_player_id).or_default();
-
-            // Update state to running
-            player_info.state = CharacterState::Running;
-            player_info.last_movement_time = now;
-
-            // Update facing direction based on left/right movement
-            match ev.key_code {
-                KeyCode::ArrowRight => player_info.facing_right = true,
-                KeyCode::ArrowLeft => player_info.facing_right = false,
-                _ => {} // Don't change facing direction for up/down movement
-            }
-        }
-    }
-}
-
 /// Tracks network player movements by comparing current positions with previous positions
-fn track_network_movements<B>(
-    world_state: Res<WorldState<PeerId, B>>,
-    mut player_states: ResMut<PlayerStates>,
+fn track_network_movements<W, P, I>(
+    world_state: Res<WorldStateResource<W>>,
+    mut player_states: ResMut<PlayerStates<P>>,
 ) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
 {
     let now = Instant::now();
     let all_players = world_state.0.get_all_players();
-    let local_player_id = world_state.0.identifier();
 
     for (peer_id, character) in all_players {
-        // Skip the local player as it's handled by track_movement_events
-        if peer_id == local_player_id {
-            continue;
-        }
-
-        let current_pos = (character.position.x, character.position.y);
+        let current_pos = (
+            character.position().x() as i64,
+            character.position().y() as i64,
+        );
 
         // Check if this player has moved
         let player_info = player_states.players.entry(peer_id).or_default();
@@ -230,78 +209,83 @@ impl AnimationConfig {
 
 /// Combined system to update player positions and execute animations
 /// This system handles both position updates and animation frame progression for all players
-fn execute_animations<B>(
+fn execute_animations<W, P, I>(
     time: Res<Time>,
-    world_state: Res<WorldState<PeerId, B>>,
-    player_states: Res<PlayerStates>,
+    world_state: Res<WorldStateResource<W>>,
+    player_states: Res<PlayerStates<P>>,
     mut player_query: Query<(
-        &PlayerEntity,
+        &PlayerEntity<P>,
         &mut AnimationConfig,
         &mut Sprite,
         &mut Transform,
     )>,
 ) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player + Sync + Send + 'static,
+    I: Sync + Send + 'static + Hash + Eq,
 {
     let all_players = world_state.0.get_all_players();
 
     for (player_entity, mut config, mut sprite, mut transform) in player_query.iter_mut() {
         // Update position based on the character's position in the world state
-        if let Some(character) = all_players.get(&player_entity.peer_id) {
-            transform.translation.x = character.position.x as f32 * 24.0;
-            transform.translation.y = character.position.y as f32 * 24.0;
+        let Some(character) = all_players.get(&player_entity.peer_id) else {
+            continue;
+        };
 
-            // Get the player's state from the interface state tracking
-            let player_info = player_states.players.get(&player_entity.peer_id);
-            let player_state = player_info.map_or(CharacterState::Idle, |info| info.state.clone());
-            let facing_right = player_info.map_or(true, |info| info.facing_right);
+        transform.translation.x = character.position().x() as f32 * MAGIC_SPEED;
+        transform.translation.y = character.position().y() as f32 * MAGIC_SPEED;
 
-            // Apply sprite flipping based on facing direction
+        // Get the player's state from the interface state tracking
+        let (state, facing_right) = player_states
+            .players
+            .get(&player_entity.peer_id)
+            .map_or((CharacterState::Idle, true), |i| {
+                (i.state.clone(), i.facing_right)
+            });
 
-            if facing_right {
-                transform.scale.x = 6.0; // Normal scale
-            } else {
-                transform.scale.x = -6.0; // Flipped scale (negative)
-            }
-            transform.scale.y = 6.0; // Keep Y scale normal
+        // Apply sprite flipping based on facing direction
+        transform.scale.y = 6.0; // Keep Y scale normal
+        if facing_right {
+            transform.scale.x = 6.0; // Normal scale
+        } else {
+            transform.scale.x = -6.0; // Flipped scale (negative)
+        }
 
-            let Some(atlas) = &mut sprite.texture_atlas else {
-                continue;
-            };
-
-            // Handle animation based on character state
-            match player_state {
-                CharacterState::Idle => {
-                    // Set to idle frame (frame 0) and stop animation
-                    if atlas.index != 0 {
-                        atlas.index = 0;
-                    }
-                    if !config.frame_timer.paused() {
-                        config.frame_timer.pause();
-                    }
+        // Handle animation based on character state
+        let Some(atlas) = &mut sprite.texture_atlas else {
+            continue;
+        };
+        match state {
+            CharacterState::Idle => {
+                // Set to idle frame (frame 0) and stop animation
+                if atlas.index != 0 {
+                    atlas.index = 0;
                 }
-                CharacterState::Running => {
-                    // Resume animation timer if paused
-                    if config.frame_timer.paused() {
-                        config.frame_timer.unpause();
+                if !config.frame_timer.paused() {
+                    config.frame_timer.pause();
+                }
+            }
+            CharacterState::Running => {
+                // Resume animation timer if paused
+                if config.frame_timer.paused() {
+                    config.frame_timer.unpause();
+                }
+
+                // Handle animation frame progression
+                config.frame_timer.tick(time.delta());
+
+                // If it has been displayed for the user-defined amount of time (fps)...
+                if config.frame_timer.just_finished() {
+                    // If last frame, then we move back to the first frame and stop.
+                    if atlas.index == config.last_sprite_index {
+                        atlas.index = config.first_sprite_index;
+                    } else {
+                        // Move to next frame
+                        atlas.index += 1;
                     }
 
-                    // Handle animation frame progression
-                    config.frame_timer.tick(time.delta());
-
-                    // If it has been displayed for the user-defined amount of time (fps)...
-                    if config.frame_timer.just_finished() {
-                        // If last frame, then we move back to the first frame and stop.
-                        if atlas.index == config.last_sprite_index {
-                            atlas.index = config.first_sprite_index;
-                        } else {
-                            // Move to next frame
-                            atlas.index += 1;
-                        }
-
-                        // Reset the frame timer to start counting all over again
-                        config.frame_timer = AnimationConfig::timer_from_fps(config.fps);
-                    }
+                    // Reset the frame timer to start counting all over again
+                    config.frame_timer = AnimationConfig::timer_from_fps(config.fps);
                 }
             }
         }
@@ -310,21 +294,22 @@ fn execute_animations<B>(
 
 /// System to handle transitions from running to idle state
 /// This system automatically sets characters back to idle after they stop moving
-fn handle_idle_transitions<B>(
-    world_state: Res<WorldState<PeerId, B>>,
-    mut player_states: ResMut<PlayerStates>,
+fn handle_idle_transitions<W, P, I>(
+    world_state: Res<WorldStateResource<W>>,
+    mut player_states: ResMut<PlayerStates<P>>,
 ) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+    W: WorldState<Id = I> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
 {
-    let now = Instant::now();
     let all_players = world_state.0.get_all_players();
 
     // Check all players (both local and network) for idle transitions
-    for peer_id in all_players.keys() {
-        if let Some(player_info) = player_states.players.get_mut(peer_id)
-            && now.duration_since(player_info.last_movement_time) > IDLE_DURATION
+    for id in all_players.keys() {
+        if let Some(state) = player_states.players.get_mut(id)
+            && state.last_movement_time.elapsed() > IDLE_DURATION
         {
-            player_info.state = CharacterState::Idle;
+            state.state = CharacterState::Idle;
         }
     }
 }
@@ -332,14 +317,16 @@ fn handle_idle_transitions<B>(
 #[derive(Component)]
 struct RightSprite;
 
-fn setup<B>(
+fn setup<W, P, I>(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    mut spawned_players: ResMut<SpawnedPlayers>,
-    world_state: Res<WorldState<PeerId, B>>,
+    mut spawned_players: ResMut<SpawnedPlayers<P>>,
+    world_state: Res<WorldStateResource<W>>,
 ) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+    W: WorldState<Id = I> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
 {
     commands.spawn(Camera2d);
 
@@ -370,7 +357,7 @@ fn setup<B>(
 
     // Create the first (left-hand) sprite
     let peer_id = world_state.0.identifier();
-    spawned_players.spawned.insert(peer_id);
+    spawned_players.spawned.insert(peer_id.clone());
     commands.spawn((
         Sprite {
             image,
@@ -380,25 +367,27 @@ fn setup<B>(
         Transform::from_scale(Vec3::splat(6.0)),
         RightSprite,
         animation_config_1,
-        PlayerEntity { peer_id },
+        PlayerEntity::<P> { peer_id },
     ));
 }
 
 /// System to spawn new player characters in the UI
-fn spawn_new_players<B>(
+fn spawn_new_players<W, P, I>(
     mut commands: Commands,
-    world_state: Res<WorldState<PeerId, B>>,
-    mut spawned_players: ResMut<SpawnedPlayers>,
+    world_state: Res<WorldStateResource<W>>,
+    mut spawned_players: ResMut<SpawnedPlayers<P>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
 {
     let all_players = world_state.0.get_all_players();
 
     for (peer_id, character) in all_players {
         // If the player has already been spawned, skip
-        if !spawned_players.spawned.insert(peer_id) {
+        if !spawned_players.spawned.insert(peer_id.clone()) {
             continue;
         }
 
@@ -421,31 +410,33 @@ fn spawn_new_players<B>(
                 ..default()
             },
             Transform::from_scale(Vec3::splat(6.0)).with_translation(Vec3::new(
-                character.position.x as f32 * MAGIC_SPEED,
-                character.position.y as f32 * MAGIC_SPEED,
+                character.position().x() as f32 * MAGIC_SPEED,
+                character.position().y() as f32 * MAGIC_SPEED,
                 0.0,
             )),
             RightSprite,
             animation_config,
-            PlayerEntity { peer_id },
+            PlayerEntity::<P> { peer_id },
         ));
     }
 }
 
 /// System to update ground position based on local player movement
-fn update_ground_position<B>(
-    world_state: Res<WorldState<PeerId, B>>,
+fn update_ground_position<W, P, I>(
+    world_state: Res<WorldStateResource<W>>,
     mut ground_query: Query<&mut Transform, With<Ground>>,
 ) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player + Sync + Send + 'static,
+    I: Sync + Send + 'static + Clone + Hash + Eq,
 {
     let local_player_id = world_state.0.identifier();
     let all_players = world_state.0.get_all_players();
 
     // Get the local player's position
     if let Some(local_player) = all_players.get(&local_player_id) {
-        let player_x = local_player.position.x as f32 * MAGIC_GROUND_SPEED;
-        let player_y = local_player.position.y as f32 * MAGIC_GROUND_SPEED;
+        let player_x = local_player.position().x() as f32 * MAGIC_GROUND_SPEED;
+        let player_y = local_player.position().y() as f32 * MAGIC_GROUND_SPEED;
 
         // Update ground position to follow the player
         for mut ground_transform in ground_query.iter_mut() {
@@ -456,27 +447,22 @@ fn update_ground_position<B>(
 }
 
 /// System to check for external shutdown conditions
-fn check_shutdown_conditions<I, B>(
+fn check_shutdown_conditions<W: WorldState + Sync + Send + 'static>(
     mut writer: EventWriter<AppExit>,
-    world_state: Res<WorldState<I, B>>,
-) where
-    I: Send + Sync + 'static,
-    B: Send + Sync + 'static,
-{
+    world_state: Res<WorldStateResource<W>>,
+) {
     // Example: Check if the world's exit status is set
-    if world_state.0.exit_status.is_exit() {
+    if world_state.0.exit_status().is_exit() {
         info!("Shutting down Interface");
         writer.write(AppExit::Success);
     }
 }
 
 /// System to track mining events and update the counter
-fn track_mining_events<B>(
-    world_state: Res<WorldState<PeerId, B>>,
+fn track_mining_events<W: WorldState + Sync + Send + 'static>(
+    world_state: Res<WorldStateResource<W>>,
     mut mining_rewards: ResMut<MiningRewards>,
-) where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
-{
+) {
     // Get the current mining rewards count from the world
     let world_count = world_state.0.get_mining_rewards_count();
 
