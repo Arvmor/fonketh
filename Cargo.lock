@@ -3858,6 +3858,7 @@ dependencies = [
  "anyhow",
  "bevy",
  "game_contract",
+ "game_interface",
  "game_network",
  "game_primitives",
  "serde",
