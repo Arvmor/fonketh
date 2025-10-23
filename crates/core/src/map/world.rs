@@ -238,19 +238,6 @@ where
         }
     }
 
-    /// Gets all players from the world
-    pub fn get_all_players(&self) -> HashMap<PeerId, Character<PeerId, B, i32>>
-    where
-        B: Clone,
-    {
-        self.players.players.read().unwrap().clone()
-    }
-
-    /// Gets the current mining rewards count
-    pub fn get_mining_rewards_count(&self) -> u32 {
-        *self.mining_rewards.read().unwrap()
-    }
-
     /// Gets the current mined addresses
     pub fn drain_mined_batch(&self) -> Vec<Rewarder::MinerData> {
         self.mined
@@ -281,7 +268,8 @@ impl<I: Clone, B, T> Identifier for World<I, B, T> {
 impl<I, B, T> WorldState for World<I, B, T>
 where
     I: Clone,
-    T: Copy + Into<f64>,
+    B: Clone,
+    T: Copy + Clone + Into<f64>,
 {
     type Player = Character<I, B, T>;
 
@@ -290,10 +278,10 @@ where
     }
 
     fn get_all_players(&self) -> HashMap<Self::Id, Self::Player> {
-        todo!()
+        self.players.players.read().unwrap().clone()
     }
 
     fn get_mining_rewards_count(&self) -> u32 {
-        todo!()
+        *self.mining_rewards.read().unwrap()
     }
 }

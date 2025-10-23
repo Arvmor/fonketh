@@ -34,11 +34,11 @@ impl ExitStatus {
 /// Used to store the state of the world
 pub trait WorldState: Identifier {
     type Player: Player;
-
+    /// Gets the exit status of the world
     fn exit_status(&self) -> Arc<ExitStatus>;
-
+    /// Gets all players from the world
     fn get_all_players(&self) -> HashMap<Self::Id, Self::Player>;
-
+    /// Gets the current mining rewards count
     fn get_mining_rewards_count(&self) -> u32;
 }
 
