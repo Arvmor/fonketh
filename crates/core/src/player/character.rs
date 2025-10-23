@@ -44,6 +44,6 @@ where
     type Position = Position<T>;
 
     fn position(&self) -> Self::Position {
-        self.position.clone()
+        self.position
     }
 }

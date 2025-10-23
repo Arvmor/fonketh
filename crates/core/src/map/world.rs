@@ -120,7 +120,7 @@ where
         Interface::run(txb, self);
 
         #[cfg(not(feature = "interface"))]
-        tokio::signal::ctrl_c().await.unwrap();
+        tokio::signal::ctrl_c().await?;
 
         Ok(())
     }
