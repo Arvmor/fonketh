@@ -57,6 +57,9 @@ pub trait Player: Identifier {
 ///
 /// Used to store the position of a player
 pub trait Position {
+    type Unit;
+
+    fn new(x: Self::Unit, y: Self::Unit) -> Self;
     fn x(&self) -> f64;
     fn y(&self) -> f64;
 }

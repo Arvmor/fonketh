@@ -1,11 +1,9 @@
-#[cfg(feature = "interface")]
-use crate::movements::keyboard_events;
 use crate::prelude::*;
 use crate::world::{Character, GameEvent, Position};
 use game_contract::Rewarder;
 use game_contract::prelude::{Address, U256};
 #[cfg(feature = "interface")]
-use game_interface::{Interface, KeyboardInput};
+use game_interface::{Interface, KeyboardInput, keyboard_events};
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
 use game_network::prelude::{Keypair, PeerId};

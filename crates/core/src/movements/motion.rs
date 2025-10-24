@@ -24,6 +24,12 @@ impl<T> game_primitives::Position for Position<T>
 where
     T: Into<f64> + Copy,
 {
+    type Unit = T;
+
+    fn new(x: Self::Unit, y: Self::Unit) -> Self {
+        Self { x, y }
+    }
+
     fn x(&self) -> f64 {
         self.x.into()
     }
