@@ -1,3 +1,5 @@
+pub mod events;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -40,6 +42,8 @@ pub trait WorldState: Identifier {
     fn get_all_players(&self) -> HashMap<Self::Id, Self::Player>;
     /// Gets the current mining rewards count
     fn get_mining_rewards_count(&self) -> u32;
+    /// Gets the current chat messages
+    fn get_chat_messages(&self) -> Vec<String>;
 }
 
 /// Player
@@ -55,6 +59,9 @@ pub trait Player: Identifier {
 ///
 /// Used to store the position of a player
 pub trait Position {
+    type Unit;
+
+    fn new(x: Self::Unit, y: Self::Unit) -> Self;
     fn x(&self) -> f64;
     fn y(&self) -> f64;
 }

@@ -3888,6 +3888,9 @@ dependencies = [
 [[package]]
 name = "game_primitives"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "generator"

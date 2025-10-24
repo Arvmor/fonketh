@@ -1,11 +1,9 @@
-#[cfg(feature = "interface")]
-use crate::movements::keyboard_events;
 use crate::prelude::*;
-use crate::world::{Character, GameEvent};
+use crate::world::{Character, GameEvent, Position};
 use game_contract::Rewarder;
 use game_contract::prelude::{Address, U256};
 #[cfg(feature = "interface")]
-use game_interface::{Interface, KeyboardInput};
+use game_interface::Interface;
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
 use game_network::prelude::{Keypair, PeerId};
@@ -62,6 +60,7 @@ pub struct World<I, B, T = i32> {
     players: Arc<PlayersPool<I, B, T>>,
     mining_rewards: Arc<RwLock<u32>>,
     mined: Arc<RwLock<HashSet<(Address, U256)>>>,
+    messages: Arc<RwLock<Vec<String>>>,
 }
 
 impl<B> World<PeerId, B, i32>
@@ -77,6 +76,7 @@ where
         let identifier = player.identifier();
         let mining_rewards = Arc::new(Default::default());
         let mined = Arc::new(Default::default());
+        let messages = Arc::new(Default::default());
 
         // Add player to players pool
         players.add_player(player.identifier(), player);
@@ -87,6 +87,7 @@ where
             players,
             mining_rewards,
             mined,
+            messages,
         }
     }
 
@@ -129,7 +130,7 @@ where
     async fn runner(
         self,
         topic: IdentTopic,
-        #[cfg(feature = "interface")] rxb: mpsc::Receiver<KeyboardInput>,
+        #[cfg(feature = "interface")] rxb: mpsc::Receiver<GameEvent<(Address, U256), Position>>,
         tx: tokio::sync::mpsc::Sender<(IdentTopic, Vec<u8>)>,
         mut rx: tokio::sync::mpsc::Receiver<Message>,
         mut client: game_contract::RewarderClient,
@@ -137,7 +138,7 @@ where
         while !self.exit_status.is_exit() {
             // Listen for key events
             #[cfg(feature = "interface")]
-            if let Ok(Some(e)) = rxb.try_recv().map(|e| keyboard_events(e.key_code)) {
+            if let Ok(e) = rxb.try_recv() {
                 info!("Received Keyboard event: {e:?}");
                 self.update(&self.identifier, &e);
 
@@ -204,7 +205,7 @@ where
     /// Updates the world
     ///
     /// Based on the Events received
-    pub fn update(&self, identifier: &PeerId, event: &GameEvent) {
+    pub fn update(&self, identifier: &PeerId, event: &GameEvent<(Address, U256), Position>) {
         match event {
             GameEvent::PlayerMovement(p) => {
                 // Update player position
@@ -225,6 +226,10 @@ where
                 // Increment mining rewards counter
                 self.mined.write().unwrap().insert(*f);
                 *self.mining_rewards.write().unwrap() += 1;
+            }
+            GameEvent::ChatMessage(message) => {
+                info!("Player {identifier:?} sent chat message: {message}");
+                self.add_chat_message(format!("{identifier}: {message}"));
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
@@ -255,6 +260,12 @@ where
     pub fn get_mined_count(&self) -> usize {
         self.mined.read().unwrap().len()
     }
+
+    /// Adds a chat message to the messages pool
+    pub fn add_chat_message(&self, message: String) {
+        let mut messages = self.messages.write().unwrap();
+        messages.push(message);
+    }
 }
 
 impl<I: Clone, B, T> Identifier for World<I, B, T> {
@@ -283,5 +294,9 @@ where
 
     fn get_mining_rewards_count(&self) -> u32 {
         *self.mining_rewards.read().unwrap()
+    }
+
+    fn get_chat_messages(&self) -> Vec<String> {
+        self.messages.read().unwrap().clone()
     }
 }

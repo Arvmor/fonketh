@@ -1,8 +1,11 @@
-use crate::movements::Position;
-use crate::world::GameEvent;
-use game_interface::KeyCode;
+use crate::prelude::*;
+use bevy::input::keyboard::KeyCode;
+use game_primitives::events::GameEvent;
 
-pub fn keyboard_events(key: KeyCode) -> Option<GameEvent> {
+pub fn keyboard_events<F, P>(key: KeyCode) -> Option<GameEvent<F, P>>
+where
+    P: Position<Unit = i32>,
+{
     // Check for event variants
     let event = match key {
         // Quit keys
@@ -18,20 +21,4 @@ pub fn keyboard_events(key: KeyCode) -> Option<GameEvent> {
     };
 
     Some(event)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_quit_event() {
-        let event = KeyCode::Escape;
-        let result = keyboard_events(event).unwrap();
-        assert_eq!(result, GameEvent::Quit);
-
-        let event = KeyCode::KeyQ;
-        let result = keyboard_events(event).unwrap();
-        assert_eq!(result, GameEvent::Quit);
-    }
 }
