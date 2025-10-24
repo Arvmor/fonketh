@@ -1,14 +1,18 @@
 use crate::prelude::*;
 use bevy::prelude::*;
+use game_primitives::events::GameEvent;
 use std::time::Instant;
 
 /// System to handle chat input from keyboard
-pub fn handle_chat_input(
+pub fn handle_chat_input<F, Po>(
     keyboard_input: ResMut<ButtonInput<KeyCode>>,
     mut chat_input: ResMut<ChatInputText>,
     mut chat_messages: ResMut<ChatMessages>,
-    _sender: Res<KeyEventSender>,
-) {
+    sender: Res<KeyEventSender<F, Po>>,
+) where
+    F: Send + Sync + 'static,
+    Po: Send + Sync + 'static,
+{
     // Toggle chat input with Enter key
     if keyboard_input.just_pressed(KeyCode::Enter) {
         if !chat_input.is_active {
@@ -27,7 +31,10 @@ pub fn handle_chat_input(
 
             // Send to network (this would need to be implemented with the network layer)
             // For now, we'll just add it to local messages
-            info!("Chat message: {}", message);
+            debug!("Sending chat message: {message}");
+            if let Err(e) = sender.0.send(GameEvent::ChatMessage(message)) {
+                error!("Error sending chat message: {e:?}");
+            }
         } else {
             // Deactivate without sending if empty
             chat_input.is_active = false;

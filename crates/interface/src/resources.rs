@@ -1,6 +1,6 @@
-use crate::logic::KeyboardInput;
 use crate::movements::PlayerStateInfo;
 use bevy::prelude::*;
+use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Sender;
@@ -8,7 +8,7 @@ use std::time::Instant;
 
 /// Resource that holds the keyboard event sender
 #[derive(Resource)]
-pub struct KeyEventSender(pub Sender<KeyboardInput>);
+pub struct KeyEventSender<F, Po>(pub Sender<GameEvent<F, Po>>);
 
 /// Resource that holds the world state
 #[derive(Resource)]

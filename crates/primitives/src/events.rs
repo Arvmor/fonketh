@@ -5,4 +5,5 @@ pub enum GameEvent<F, P> {
     Quit,
     PlayerMovement(P),
     PlayerFound(F),
+    ChatMessage(String),
 }

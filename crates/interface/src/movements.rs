@@ -1,3 +1,4 @@
+use crate::logic::keyboard_events;
 use crate::prelude::*;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
@@ -32,12 +33,20 @@ pub enum CharacterState {
 }
 
 /// Captures keyboard events and sends them to the core channel
-pub fn capture_key_events(mut evr_keys: EventReader<KeyboardInput>, sender: Res<KeyEventSender>) {
+pub fn capture_key_events<F, Po>(
+    mut evr_keys: EventReader<KeyboardInput>,
+    sender: Res<KeyEventSender<F, Po>>,
+) where
+    F: Send + Sync + 'static,
+    Po: Position<Unit = i32> + Send + Sync + 'static,
+{
     for ev in evr_keys.read() {
         info!("Keyboard event: {ev:?}");
 
         // Send over channel to core
-        if let Err(e) = sender.0.send(ev.clone()) {
+        if let Some(event) = keyboard_events(ev.key_code)
+            && let Err(e) = sender.0.send(event)
+        {
             error!("Error sending keyboard event: {e:?}");
         }
     }

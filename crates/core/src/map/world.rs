@@ -3,7 +3,7 @@ use crate::world::{Character, GameEvent, Position};
 use game_contract::Rewarder;
 use game_contract::prelude::{Address, U256};
 #[cfg(feature = "interface")]
-use game_interface::{Interface, KeyboardInput, keyboard_events};
+use game_interface::Interface;
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::{IdentTopic, Message};
 use game_network::prelude::{Keypair, PeerId};
@@ -127,7 +127,7 @@ where
     async fn runner(
         self,
         topic: IdentTopic,
-        #[cfg(feature = "interface")] rxb: mpsc::Receiver<KeyboardInput>,
+        #[cfg(feature = "interface")] rxb: mpsc::Receiver<GameEvent<(Address, U256), Position>>,
         tx: tokio::sync::mpsc::Sender<(IdentTopic, Vec<u8>)>,
         mut rx: tokio::sync::mpsc::Receiver<Message>,
         mut client: game_contract::RewarderClient,
@@ -135,7 +135,7 @@ where
         while !self.exit_status.is_exit() {
             // Listen for key events
             #[cfg(feature = "interface")]
-            if let Ok(Some(e)) = rxb.try_recv().map(|e| keyboard_events(e.key_code)) {
+            if let Ok(e) = rxb.try_recv() {
                 info!("Received Keyboard event: {e:?}");
                 self.update(&self.identifier, &e);
 
@@ -223,6 +223,9 @@ where
                 // Increment mining rewards counter
                 self.mined.write().unwrap().insert(*f);
                 *self.mining_rewards.write().unwrap() += 1;
+            }
+            GameEvent::ChatMessage(message) => {
+                info!("Player {identifier:?} sent chat message: {message}");
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");

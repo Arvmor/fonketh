@@ -6,6 +6,7 @@ use crate::movements::{
 use crate::prelude::*;
 pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use bevy::prelude::*;
+use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
 use std::hash::Hash;
 use std::sync::mpsc::Sender;
@@ -21,8 +22,10 @@ impl Interface {
     /// Runs the Bevy app
     ///
     /// Creates a new Bevy app and runs it
-    pub fn run<W, P, I>(channel: Sender<KeyboardInput>, world: W) -> Self
+    pub fn run<W, P, I, F, Po>(channel: Sender<GameEvent<F, Po>>, world: W) -> Self
     where
+        F: Send + Sync + 'static,
+        Po: Position<Unit = i32> + Send + Sync + 'static,
         W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
         P: Identifier<Id = I> + Player + Sync + Send + 'static,
         I: Hash + Eq + Clone + Sync + Send + 'static,
@@ -41,7 +44,7 @@ impl Interface {
             .insert_resource(ChatInputText::default())
             .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
             .add_systems(Startup, setup::<W, P, I>)
-            .add_systems(Update, capture_key_events)
+            .add_systems(Update, capture_key_events::<F, Po>)
             .add_systems(Update, check_shutdown_conditions::<W>) // Add this system
             .add_systems(Update, track_network_movements::<W, P, I>)
             .add_systems(Update, execute_animations::<W, P, I>)
@@ -50,7 +53,7 @@ impl Interface {
             .add_systems(Update, update_ground_position::<W, P, I>)
             .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
-            .add_systems(Update, handle_chat_input)
+            .add_systems(Update, handle_chat_input::<F, Po>)
             .add_systems(Update, display_chat_messages)
             .add_systems(Update, handle_incoming_chat_messages)
             .run();
