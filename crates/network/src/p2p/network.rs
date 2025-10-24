@@ -13,7 +13,7 @@ pub const GAME_PROTO_NAME: StreamProtocol = StreamProtocol::new("/game/kad/1.0.0
 /// Listen address for the peer
 const LISTEN_ADDR: &str = "/ip4/0.0.0.0/udp/7331/quic-v1";
 /// Bootstrap nodes for the peer
-const BOOTSTRAP_NODES: [&str; 0] = [];
+const BOOTSTRAP_NODES: [&str; 1] = ["/ip4/13.220.20.144/udp/7331/quic-v1"];
 
 #[derive(NetworkBehaviour)]
 pub struct MyBehaviour {
