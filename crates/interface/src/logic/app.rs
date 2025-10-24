@@ -37,6 +37,8 @@ impl Interface {
             .insert_resource(SpawnedPlayers::<P>::default())
             .insert_resource(PlayerStates::<P>::default())
             .insert_resource(MiningRewards::default())
+            .insert_resource(ChatMessages::default())
+            .insert_resource(ChatInputText::default())
             .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
             .add_systems(Startup, setup::<W, P, I>)
             .add_systems(Update, capture_key_events)
@@ -48,6 +50,9 @@ impl Interface {
             .add_systems(Update, update_ground_position::<W, P, I>)
             .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
+            .add_systems(Update, handle_chat_input)
+            .add_systems(Update, display_chat_messages)
+            .add_systems(Update, handle_incoming_chat_messages)
             .run();
 
         Self { app }
@@ -68,11 +73,13 @@ fn setup<W, P, I>(
     commands.spawn(Camera2d);
 
     // Spawn the status bar in the top left
-    commands.spawn((
-        Text::new("Mining Rewards: 0"),
-        Transform::from_translation(Vec3::new(-400.0, 300.0, 10.0)),
-        StatusBar,
-    ));
+    commands.spawn((Text::default(), StatusBar));
+
+    // Spawn the chat box in the bottom left
+    commands.spawn((Text::default(), ChatBox));
+
+    // Spawn the chat input field
+    commands.spawn((Text::default(), ChatInput));
 
     // Spawn the grass background
     let image = asset_server.load("textures/background/full.png");

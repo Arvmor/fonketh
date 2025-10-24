@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use game_primitives::{Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Sender;
+use std::time::Instant;
 
 /// Resource that holds the keyboard event sender
 #[derive(Resource)]
@@ -42,4 +43,17 @@ impl<I: Identifier> Default for PlayerStates<I> {
 #[derive(Resource, Default)]
 pub struct MiningRewards {
     pub count: u32,
+}
+
+/// Resource that holds the chat messages
+#[derive(Resource, Default)]
+pub struct ChatMessages {
+    pub messages: Vec<(String, Instant)>,
+}
+
+/// Resource that holds the current chat input text
+#[derive(Resource, Default)]
+pub struct ChatInputText {
+    pub text: String,
+    pub is_active: bool,
 }

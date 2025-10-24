@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use game_primitives::Identifier;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Component to identify the right sprite
 /// TODO - REMOVE THIS COMPONENT
@@ -20,6 +20,22 @@ pub struct Ground;
 /// Component to identify the status bar entity
 #[derive(Component)]
 pub struct StatusBar;
+
+/// Component to identify the chat box entity
+#[derive(Component)]
+pub struct ChatBox;
+
+/// Component to identify the chat input field entity
+#[derive(Component)]
+pub struct ChatInput;
+
+/// Component to identify individual chat message entities
+#[derive(Component)]
+#[allow(dead_code)] // This component is designed for future use with individual message entities
+pub struct ChatMessage {
+    pub message: String,
+    pub timestamp: Instant,
+}
 
 /// Component to identify the animation configuration
 #[derive(Component)]

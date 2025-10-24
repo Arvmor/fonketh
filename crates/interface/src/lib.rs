@@ -1,3 +1,4 @@
+mod chat;
 mod components;
 mod logic;
 mod minings;
@@ -15,6 +16,7 @@ mod prelude {
     /// FPS
     pub const FPS: u8 = 14;
 
+    pub use crate::chat::*;
     pub use crate::components::*;
     pub use crate::resources::*;
     pub use game_primitives::*;
