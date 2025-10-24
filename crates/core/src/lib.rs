@@ -1,15 +1,15 @@
-pub mod events;
 pub mod map;
 pub mod movements;
 pub mod player;
 
 // Crate Internal API
 pub mod world {
-    pub use crate::events::GameEvent;
     pub use crate::map::World;
+    pub use crate::movements::Position;
     pub use crate::player::Character;
     pub use game_contract::prelude::B256;
     pub use game_network::prelude::Keypair;
+    pub use game_primitives::events::GameEvent;
 }
 
 // Crate Prelude

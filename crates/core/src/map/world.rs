@@ -1,7 +1,7 @@
 #[cfg(feature = "interface")]
 use crate::movements::keyboard_events;
 use crate::prelude::*;
-use crate::world::{Character, GameEvent};
+use crate::world::{Character, GameEvent, Position};
 use game_contract::Rewarder;
 use game_contract::prelude::{Address, U256};
 #[cfg(feature = "interface")]
@@ -204,7 +204,7 @@ where
     /// Updates the world
     ///
     /// Based on the Events received
-    pub fn update(&self, identifier: &PeerId, event: &GameEvent) {
+    pub fn update(&self, identifier: &PeerId, event: &GameEvent<(Address, U256), Position>) {
         match event {
             GameEvent::PlayerMovement(p) => {
                 // Update player position
