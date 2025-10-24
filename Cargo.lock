@@ -3856,7 +3856,6 @@ name = "game_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bevy",
  "game_contract",
  "game_interface",
  "game_network",

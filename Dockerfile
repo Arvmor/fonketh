@@ -1,9 +1,6 @@
-FROM rust:latest AS builder
+FROM rust:alpine AS builder
 
-RUN apt-get update && apt-get install -y \
-    libasound2-dev \
-    libudev-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk update && apk add --no-cache musl-dev
 
 WORKDIR /app
 
@@ -11,8 +8,11 @@ COPY . .
 
 RUN cargo build --release --bin app
 
-FROM debian:latest
+FROM alpine:latest
 
 COPY --from=builder /app/target/release/app /usr/local/bin/app
+
+# SWARM UDP PORT
+EXPOSE 7331/udp
 
 CMD ["app"]

@@ -1,14 +1,19 @@
 use crate::prelude::*;
-use libp2p::{
-    StreamProtocol, Swarm,
-    futures::StreamExt,
-    gossipsub::{IdentTopic, Message},
-    identity::Keypair,
-    swarm::{NetworkBehaviour, SwarmEvent},
-};
+use libp2p::futures::StreamExt;
+use libp2p::gossipsub::{IdentTopic, Message};
+use libp2p::identity::Keypair;
+use libp2p::swarm::dial_opts::DialOpts;
+use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
+use libp2p::{StreamProtocol, Swarm};
 use std::{fmt::Debug, time::Duration};
 use tokio::sync::mpsc::{self, error::TryRecvError};
+
+/// Game protocol name
 pub const GAME_PROTO_NAME: StreamProtocol = StreamProtocol::new("/game/kad/1.0.0");
+/// Listen address for the peer
+const LISTEN_ADDR: &str = "/ip4/0.0.0.0/udp/7331/quic-v1";
+/// Bootstrap nodes for the peer
+const BOOTSTRAP_NODES: [&str; 1] = ["/ip4/13.220.20.144/udp/7331/quic-v1"];
 
 #[derive(NetworkBehaviour)]
 pub struct MyBehaviour {
@@ -93,6 +98,13 @@ where
     async fn run(mut self, topics: Vec<T>) -> Result<()> {
         info!("Running network PeerID: {}", self.swarm.local_peer_id());
         self.listen()?;
+
+        // Connect to the bootstrap nodes
+        for node in BOOTSTRAP_NODES {
+            let opts = DialOpts::unknown_peer_id().address(node.parse()?).build();
+            self.swarm.dial(opts)?;
+        }
+
         for topic in topics {
             self.subscribe(topic)?;
         }
@@ -166,7 +178,7 @@ where
     M: Into<Vec<u8>> + Send + Sync + 'static,
 {
     fn listen(&mut self) -> Result<()> {
-        self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+        self.swarm.listen_on(LISTEN_ADDR.parse()?)?;
 
         Ok(())
     }
