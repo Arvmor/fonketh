@@ -13,6 +13,6 @@ FROM alpine:latest
 COPY --from=builder /app/target/release/app /usr/local/bin/app
 
 # SWARM UDP PORT
-EXPOSE 7331
+EXPOSE 7331/udp
 
 CMD ["app"]
