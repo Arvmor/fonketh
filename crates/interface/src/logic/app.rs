@@ -24,8 +24,8 @@ impl Interface {
     pub fn run<W, P, I>(channel: Sender<KeyboardInput>, world: W) -> Self
     where
         W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
-        P: Identifier<Id = I> + Player + Default + Sync + Send + 'static,
-        I: Hash + Eq + Default + Clone + Sync + Send + 'static,
+        P: Identifier<Id = I> + Player + Sync + Send + 'static,
+        I: Hash + Eq + Clone + Sync + Send + 'static,
     {
         let sender = KeyEventSender(channel);
         let world = WorldStateResource(world);
