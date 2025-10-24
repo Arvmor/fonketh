@@ -1,13 +1,11 @@
 use crate::prelude::*;
 use bevy::prelude::*;
 use game_primitives::events::GameEvent;
-use std::time::Instant;
 
 /// System to handle chat input from keyboard
 pub fn handle_chat_input<F, Po>(
     keyboard_input: ResMut<ButtonInput<KeyCode>>,
     mut chat_input: ResMut<ChatInputText>,
-    mut chat_messages: ResMut<ChatMessages>,
     sender: Res<KeyEventSender<F, Po>>,
 ) where
     F: Send + Sync + 'static,
@@ -23,11 +21,6 @@ pub fn handle_chat_input<F, Po>(
             // Send the message when deactivating
             chat_input.is_active = false;
             let message = std::mem::take(&mut chat_input.text);
-
-            // Add to local chat messages
-            chat_messages
-                .messages
-                .push((format!("You: {message}"), Instant::now()));
 
             // Send to network (this would need to be implemented with the network layer)
             // For now, we'll just add it to local messages
@@ -120,14 +113,16 @@ fn key_to_char(key: &KeyCode) -> Option<char> {
 
 /// System to display chat messages
 #[allow(clippy::type_complexity)]
-pub fn display_chat_messages(
-    chat_messages: Res<ChatMessages>,
+pub fn display_chat_messages<W>(
+    world_state: Res<WorldStateResource<W>>,
     chat_input: Res<ChatInputText>,
     mut text_queries: ParamSet<(
         Query<&mut Text, With<ChatBox>>,
         Query<&mut Text, With<ChatInput>>,
     )>,
-) {
+) where
+    W: WorldState + Sync + Send + 'static,
+{
     // Update chat box with recent messages
     if let Ok(mut chat_box_text) = text_queries.p0().single_mut() {
         let mut recent = Vec::with_capacity(6);
@@ -139,8 +134,8 @@ pub fn display_chat_messages(
         }
 
         // Show last 5 messages
-        for (m, t) in chat_messages.messages.iter().rev().take(5) {
-            recent.push(format!("{m} | {}s ago", t.elapsed().as_secs()));
+        for m in world_state.0.get_chat_messages().into_iter().rev().take(5) {
+            recent.push(m);
         }
 
         chat_box_text.0 = recent.join("\n");
@@ -154,17 +149,4 @@ pub fn display_chat_messages(
             chat_input_text.0.clear();
         }
     }
-}
-
-/// System to handle incoming chat messages from network
-pub fn handle_incoming_chat_messages(_chat_messages: ResMut<ChatMessages>) {
-    // This system would handle incoming chat messages from other players
-    // It would need to be connected to the network communication layer
-    // For now, it's a placeholder that would need to be implemented with proper network integration
-
-    // Example of how it might work:
-    // 1. Receive message from network
-    // 2. Parse the message
-    // 3. Add to chat_messages.messages with sender info
-    // 4. The display_chat_messages system will automatically show it
 }

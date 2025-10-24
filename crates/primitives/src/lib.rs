@@ -42,6 +42,8 @@ pub trait WorldState: Identifier {
     fn get_all_players(&self) -> HashMap<Self::Id, Self::Player>;
     /// Gets the current mining rewards count
     fn get_mining_rewards_count(&self) -> u32;
+    /// Gets the current chat messages
+    fn get_chat_messages(&self) -> Vec<String>;
 }
 
 /// Player

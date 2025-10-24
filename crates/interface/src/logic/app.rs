@@ -40,7 +40,6 @@ impl Interface {
             .insert_resource(SpawnedPlayers::<P>::default())
             .insert_resource(PlayerStates::<P>::default())
             .insert_resource(MiningRewards::default())
-            .insert_resource(ChatMessages::default())
             .insert_resource(ChatInputText::default())
             .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest())) // prevents blurry sprites
             .add_systems(Startup, setup::<W, P, I>)
@@ -54,8 +53,7 @@ impl Interface {
             .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
             .add_systems(Update, handle_chat_input::<F, Po>)
-            .add_systems(Update, display_chat_messages)
-            .add_systems(Update, handle_incoming_chat_messages)
+            .add_systems(Update, display_chat_messages::<W>)
             .run();
 
         Self { app }

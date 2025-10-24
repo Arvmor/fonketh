@@ -60,6 +60,7 @@ pub struct World<I, B, T = i32> {
     players: Arc<PlayersPool<I, B, T>>,
     mining_rewards: Arc<RwLock<u32>>,
     mined: Arc<RwLock<HashSet<(Address, U256)>>>,
+    messages: Arc<RwLock<Vec<String>>>,
 }
 
 impl<B> World<PeerId, B, i32>
@@ -75,6 +76,7 @@ where
         let identifier = player.identifier();
         let mining_rewards = Arc::new(Default::default());
         let mined = Arc::new(Default::default());
+        let messages = Arc::new(Default::default());
 
         // Add player to players pool
         players.add_player(player.identifier(), player);
@@ -85,6 +87,7 @@ where
             players,
             mining_rewards,
             mined,
+            messages,
         }
     }
 
@@ -226,6 +229,7 @@ where
             }
             GameEvent::ChatMessage(message) => {
                 info!("Player {identifier:?} sent chat message: {message}");
+                self.add_chat_message(format!("{identifier}: {message}"));
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
@@ -256,6 +260,12 @@ where
     pub fn get_mined_count(&self) -> usize {
         self.mined.read().unwrap().len()
     }
+
+    /// Adds a chat message to the messages pool
+    pub fn add_chat_message(&self, message: String) {
+        let mut messages = self.messages.write().unwrap();
+        messages.push(message);
+    }
 }
 
 impl<I: Clone, B, T> Identifier for World<I, B, T> {
@@ -284,5 +294,9 @@ where
 
     fn get_mining_rewards_count(&self) -> u32 {
         *self.mining_rewards.read().unwrap()
+    }
+
+    fn get_chat_messages(&self) -> Vec<String> {
+        self.messages.read().unwrap().clone()
     }
 }
