@@ -108,6 +108,7 @@ pub fn execute_animations<W, P, I>(
     I: Sync + Send + 'static + Hash + Eq,
 {
     let all_players = world_state.0.get_all_players();
+    let local_player_id = world_state.0.identifier();
 
     for (player_entity, mut config, mut sprite, mut transform) in player_query.iter_mut() {
         // Update position based on the character's position in the world state
@@ -115,8 +116,30 @@ pub fn execute_animations<W, P, I>(
             continue;
         };
 
-        transform.translation.x = character.position().x() as f32 * MAGIC_SPEED;
-        transform.translation.y = character.position().y() as f32 * MAGIC_SPEED;
+        // Calculate base position
+        let base_x = character.position().x() as f32 * MAGIC_SPEED;
+        let base_y = character.position().y() as f32 * MAGIC_SPEED;
+
+        // Apply ground offset for other players (non-local players)
+        if player_entity.peer_id != local_player_id {
+            // Get the local player's position to calculate ground offset
+            if let Some(local_player) = all_players.get(&local_player_id) {
+                let ground_offset_x = local_player.position().x() as f32 * MAGIC_GROUND_SPEED;
+                let ground_offset_y = local_player.position().y() as f32 * MAGIC_GROUND_SPEED;
+
+                // Apply ground offset to pin other players to the ground
+                transform.translation.x = base_x + ground_offset_x;
+                transform.translation.y = base_y + ground_offset_y;
+            } else {
+                // Fallback if local player not found
+                transform.translation.x = base_x;
+                transform.translation.y = base_y;
+            }
+        } else {
+            // Local player uses base position (ground moves with them)
+            transform.translation.x = base_x;
+            transform.translation.y = base_y;
+        }
 
         // Get the player's state from the interface state tracking
         let (state, facing_right) = player_states
