@@ -9,9 +9,9 @@ pub mod prelude {
 
 use crate::Rewarder::RewarderInstance;
 use alloy::{
-    primitives::{Address, address},
+    primitives::{Address, B256, address, keccak256},
     providers::{DynProvider, Provider, ProviderBuilder},
-    signers::local::PrivateKeySigner,
+    signers::{Signature, Signer, local::PrivateKeySigner},
     sol,
 };
 
@@ -23,6 +23,7 @@ pub struct RewarderClient {
     pub provider: DynProvider,
     pub contract: RewarderInstance<DynProvider>,
     pub miner: mine::Miner,
+    pub wallet: PrivateKeySigner,
 }
 
 impl RewarderClient {
@@ -32,9 +33,8 @@ impl RewarderClient {
     /// Creates a new Rewarder client
     pub async fn new(url: &str, private_key: &[u8], chain_id: u64) -> anyhow::Result<Self> {
         let wallet = PrivateKeySigner::from_slice(private_key)?;
-        let address = wallet.address();
         let provider = ProviderBuilder::new()
-            .wallet(wallet)
+            .wallet(wallet.clone())
             .with_chain_id(chain_id)
             .connect_http(url.parse()?)
             .erased();
@@ -45,13 +45,43 @@ impl RewarderClient {
         let init_hash = contract.initHash().call().await?;
 
         // Create the miner instance
-        let miner = mine::Miner::new(Self::ADDRESS, address, 0, init_hash, difficulty);
+        let miner = mine::Miner::new(Self::ADDRESS, wallet.address(), 0, init_hash, difficulty);
 
         Ok(Self {
             contract,
             provider,
             miner,
+            wallet,
         })
+    }
+
+    /// Hashes a message
+    pub fn hash(&self, message: impl AsRef<[u8]>) -> B256 {
+        keccak256(message)
+    }
+
+    /// Signs a message
+    pub async fn create_signature(&self, message: &[u8]) -> anyhow::Result<Signature> {
+        let signature = self.wallet.sign_hash(&B256::from_slice(message)).await?;
+        Ok(signature)
+    }
+
+    /// Verify an event
+    pub fn verify_signature(
+        &self,
+        signature: &Signature,
+        address: Address,
+        hash: &B256,
+    ) -> anyhow::Result<()> {
+        let signature = signature.recover_address_from_prehash(hash)?;
+
+        // Verify the signature
+        if signature != address {
+            tracing::error!("Invalid signer: {signature} != {address}");
+            return Err(anyhow::anyhow!("Invalid signer"));
+        }
+
+        Ok(())
     }
 }
 
