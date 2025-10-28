@@ -1,7 +1,7 @@
 use crate::minings::{track_mining_events, update_status_bar};
 use crate::movements::{
     capture_key_events, execute_animations, handle_idle_transitions, track_network_movements,
-    update_ground_position,
+    update_camera_position,
 };
 use crate::prelude::*;
 pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
@@ -49,7 +49,7 @@ impl Interface {
             .add_systems(Update, execute_animations::<W, P, I>)
             .add_systems(Update, spawn_new_players::<W, P, I>)
             .add_systems(Update, handle_idle_transitions::<W, P, I>)
-            .add_systems(Update, update_ground_position::<W, P, I>)
+            .add_systems(Update, update_camera_position::<W, P, I>)
             .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
             .add_systems(Update, handle_chat_input::<F, Po>)
@@ -82,7 +82,7 @@ fn setup<W, P, I>(
     // Spawn the chat input field
     commands.spawn((Text::default(), ChatInput));
 
-    // Spawn the grass background
+    // Spawn the grass background at a fixed position
     let image = asset_server.load("textures/background/full.png");
     commands.spawn((
         Sprite { image, ..default() },
