@@ -5,7 +5,7 @@ use game_core::world::{B256, Character, Keypair, World};
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::fmt()
         .with_env_filter(
-            "app=debug,game_core=debug,game_contract=debug,game_network=debug,game_app=debug",
+            "app=debug,game_core=debug,game_contract=debug,game_network=debug,game_app=debug,game_interface=debug,game_contract=debug",
         )
         .init();
 
