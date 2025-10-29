@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod map;
 pub mod movements;
 pub mod player;
