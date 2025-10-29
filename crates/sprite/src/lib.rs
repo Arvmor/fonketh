@@ -1,5 +1,5 @@
 use image::{ImageReader, Rgba};
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 /// A sprite image
 pub struct SpriteImage<P> {
@@ -9,6 +9,9 @@ pub struct SpriteImage<P> {
 
 /// Hair Color
 pub const HAIR_COLOR: Rgba<u8> = Rgba([0x79, 0x3d, 0x4e, 0xff]);
+pub const SKIN_COLOR: Rgba<u8> = Rgba([0xfb, 0x95, 0x85, 0xff]);
+pub const EYES_COLOR: Rgba<u8> = Rgba([0x85, 0xa3, 0xc7, 0xff]);
+pub const CLOTHING_COLOR: Rgba<u8> = Rgba([0x01, 0x76, 0x87, 0xff]);
 
 impl<P: AsRef<Path>> SpriteImage<P> {
     /// Loads a sprite image from a file
@@ -18,14 +21,16 @@ impl<P: AsRef<Path>> SpriteImage<P> {
     }
 
     /// Modify Color of the sprite image
-    pub fn modify_color(&mut self, from: Rgba<u8>, to: Rgba<u8>) -> anyhow::Result<()> {
+    pub fn modify_color(&mut self, map: HashMap<Rgba<u8>, Rgba<u8>>) -> anyhow::Result<()> {
         let colors = self
             .image
             .as_mut_rgba8()
             .ok_or(anyhow::anyhow!("Image is not a RGBA8 image"))?;
 
-        for pixel in colors.pixels_mut().filter(|c| **c == from) {
-            *pixel = to;
+        for pixel in colors.pixels_mut() {
+            if let Some(to) = map.get(pixel) {
+                *pixel = *to;
+            }
         }
 
         Ok(())
@@ -53,8 +58,11 @@ mod tests {
     fn modify_color() -> anyhow::Result<()> {
         let mut sprite_image = SpriteImage::new("../app/assets/textures/characters/gabe.png")?;
 
+        // Create a map of colors to modify
+        let map = HashMap::from([(HAIR_COLOR, Rgba([0x00, 0xc1, 0x9a, 0xff]))]);
+
         // Modify the color of the sprite image
-        sprite_image.modify_color(HAIR_COLOR, Rgba([0x00, 0xc1, 0x9a, 0xff]))?;
+        sprite_image.modify_color(map)?;
         sprite_image.save()?;
 
         Ok(())
