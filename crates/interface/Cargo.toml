@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 game_primitives.workspace = true
-bevy = "0.16.1"
+game_sprite.workspace = true
+bevy = "0.17.2"
