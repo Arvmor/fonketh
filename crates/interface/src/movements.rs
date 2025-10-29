@@ -34,7 +34,7 @@ pub enum CharacterState {
 
 /// Captures keyboard events and sends them to the core channel
 pub fn capture_key_events<F, Po>(
-    mut evr_keys: EventReader<KeyboardInput>,
+    mut evr_keys: MessageReader<KeyboardInput>,
     sender: Res<KeyEventSender<F, Po>>,
 ) where
     F: Send + Sync + 'static,
@@ -167,13 +167,13 @@ pub fn execute_animations<W, P, I>(
                 if atlas.index != 0 {
                     atlas.index = 0;
                 }
-                if !config.frame_timer.paused() {
+                if !config.frame_timer.is_paused() {
                     config.frame_timer.pause();
                 }
             }
             CharacterState::Running => {
                 // Resume animation timer if paused
-                if config.frame_timer.paused() {
+                if config.frame_timer.is_paused() {
                     config.frame_timer.unpause();
                 }
 
