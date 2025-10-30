@@ -20,7 +20,12 @@ pub fn update_status_bar(
     mining_rewards: Res<MiningRewards>,
     mut text_query: Query<&mut Text, With<StatusBar>>,
 ) {
+    // Short circuit if the mining rewards are not changed
+    if !mining_rewards.is_changed() {
+        return;
+    }
+
     for mut text in text_query.iter_mut() {
-        *text = Text::new(format!("Mining Rewards: {}", mining_rewards.count));
+        text.0 = format!("Mined Treasures #{}", mining_rewards.count);
     }
 }

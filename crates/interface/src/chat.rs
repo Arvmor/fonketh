@@ -127,9 +127,7 @@ pub fn display_chat_messages<W>(
     if let Ok(mut chat_box_text) = text_queries.p0().single_mut() {
         let mut recent = Vec::with_capacity(6);
 
-        if chat_input.is_active {
-            recent.push(String::default());
-        } else {
+        if !chat_input.is_active {
             recent.push("> Press Enter to type".to_string());
         }
 
@@ -144,7 +142,7 @@ pub fn display_chat_messages<W>(
     // Update chat input field
     if let Ok(mut chat_input_text) = text_queries.p1().single_mut() {
         if chat_input.is_active {
-            chat_input_text.0 = format!(" > {}", chat_input.text);
+            chat_input_text.0 = format!("> {}_", chat_input.text);
         } else {
             chat_input_text.0.clear();
         }

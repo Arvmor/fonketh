@@ -17,6 +17,18 @@ pub struct PlayerEntity<I: Identifier> {
 #[derive(Component)]
 pub struct Ground;
 
+/// Component to identify the HUD root container
+#[derive(Component)]
+pub struct HudRoot;
+
+/// Component to identify the top HUD bar container
+#[derive(Component)]
+pub struct TopHudBar;
+
+/// Component to identify the bottom HUD bar container
+#[derive(Component)]
+pub struct BottomHudBar;
+
 /// Component to identify the status bar entity
 #[derive(Component)]
 pub struct StatusBar;
@@ -28,6 +40,14 @@ pub struct ChatBox;
 /// Component to identify the chat input field entity
 #[derive(Component)]
 pub struct ChatInput;
+
+/// Component to identify player count display
+#[derive(Component)]
+pub struct PlayerCount;
+
+/// Component to identify instructions display
+#[derive(Component)]
+pub struct InstructionsText;
 
 /// Component to identify the animation configuration
 #[derive(Component)]
