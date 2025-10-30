@@ -28,7 +28,7 @@ impl Color {
         Self(Rgba([r, g, b, a]))
     }
 
-    /// Creates an RGBA from a hex string
+    /// Creates an RGBA from a byte slice
     pub fn from_bytes(bytes: &[u8]) -> Self {
         Self::create(bytes[0], bytes[1], bytes[2], bytes[3])
     }
