@@ -9,15 +9,8 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    // Read Arguments
-    let load_key = std::env::args()
-        .nth(1)
-        .and_then(|f| std::fs::read_to_string(f).ok())
-        .or(std::env::var("PRIVATE_KEY").ok())
-        .expect("Provide Path to Private Key or set PRIVATE_KEY environment variable");
-
     // Load private key
-    let private_key = load_key.parse::<B256>()?;
+    let private_key = load_private_key()?;
     let keypair = Keypair::ed25519_from_bytes(private_key)?;
 
     // Initialize world
@@ -26,4 +19,30 @@ async fn main() -> Result<()> {
     world.initialize(private_key.to_vec()).await?;
 
     Ok(())
+}
+
+/// Default path to private key file
+const DEFAULT_KEY_PATH: &str = "./private.key";
+
+/// Loads private key from environment variable, file argument, or default file.
+fn load_private_key() -> Result<B256> {
+    // Read Envs
+    let env_key = std::env::var("PRIVATE_KEY");
+    // Read Arg
+    let arg_key = std::env::args().nth(1).map(std::fs::read_to_string);
+    // Read Default Key
+    let default_key = std::fs::read_to_string(DEFAULT_KEY_PATH);
+
+    let key = match (env_key, arg_key, default_key) {
+        (Ok(k), _, _) => k,
+        (_, Some(Ok(k)), _) => k,
+        (_, _, Ok(k)) => k,
+        _ => {
+            let new_key = B256::random().to_string();
+            std::fs::write(DEFAULT_KEY_PATH, &new_key)?;
+            new_key
+        }
+    };
+
+    Ok(key.parse::<B256>()?)
 }

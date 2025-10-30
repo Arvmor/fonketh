@@ -108,7 +108,6 @@ pub fn execute_animations<W, P, I>(
     I: Sync + Send + 'static + Hash + Eq,
 {
     let all_players = world_state.0.get_all_players();
-    let local_player_id = world_state.0.identifier();
 
     for (player_entity, mut config, mut sprite, mut transform) in player_query.iter_mut() {
         // Update position based on the character's position in the world state
@@ -116,30 +115,10 @@ pub fn execute_animations<W, P, I>(
             continue;
         };
 
-        // Calculate base position
-        let base_x = character.position().x() as f32 * MAGIC_SPEED;
-        let base_y = character.position().y() as f32 * MAGIC_SPEED;
-
-        // Apply ground offset for other players (non-local players)
-        if player_entity.peer_id != local_player_id {
-            // Get the local player's position to calculate ground offset
-            if let Some(local_player) = all_players.get(&local_player_id) {
-                let ground_offset_x = local_player.position().x() as f32 * MAGIC_GROUND_SPEED;
-                let ground_offset_y = local_player.position().y() as f32 * MAGIC_GROUND_SPEED;
-
-                // Apply ground offset to pin other players to the ground
-                transform.translation.x = base_x + ground_offset_x;
-                transform.translation.y = base_y + ground_offset_y;
-            } else {
-                // Fallback if local player not found
-                transform.translation.x = base_x;
-                transform.translation.y = base_y;
-            }
-        } else {
-            // Local player uses base position (ground moves with them)
-            transform.translation.x = base_x;
-            transform.translation.y = base_y;
-        }
+        // Calculate position directly from world position
+        // Camera follows the player now, so no offset needed
+        transform.translation.x = character.position().x() as f32 * MAGIC_SPEED;
+        transform.translation.y = character.position().y() as f32 * MAGIC_SPEED;
 
         // Get the player's state from the interface state tracking
         let (state, facing_right) = player_states
@@ -220,27 +199,60 @@ pub fn handle_idle_transitions<W, P, I>(
     }
 }
 
-/// System to update ground position based on local player movement
-pub fn update_ground_position<W, P, I>(
-    world_state: Res<WorldStateResource<W>>,
-    mut ground_query: Query<&mut Transform, With<Ground>>,
-) where
-    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
-    P: Identifier<Id = I> + Player + Sync + Send + 'static,
-    I: Sync + Send + 'static + Clone + Hash + Eq,
-{
-    let local_player_id = world_state.0.identifier();
-    let all_players = world_state.0.get_all_players();
+/// System to update camera position to follow the main player with boundary logic
+pub fn follow_main_player_with_camera(
+    main_player_query: Query<&Transform, (With<MainPlayer>, Without<Camera2d>)>,
+    mut camera_query: Query<&mut Transform, With<Camera2d>>,
+    window_query: Query<&Window>,
+) {
+    // Get the main player's position (using iter to get the first result)
+    let Some(player_transform) = main_player_query.iter().next() else {
+        return;
+    };
 
-    // Get the local player's position
-    if let Some(local_player) = all_players.get(&local_player_id) {
-        let player_x = local_player.position().x() as f32 * MAGIC_GROUND_SPEED;
-        let player_y = local_player.position().y() as f32 * MAGIC_GROUND_SPEED;
+    // Get the camera's current position (using iter_mut to get the first result)
+    let Some(mut camera_transform) = camera_query.iter_mut().next() else {
+        return;
+    };
 
-        // Update ground position to follow the player
-        for mut ground_transform in ground_query.iter_mut() {
-            ground_transform.translation.x = player_x;
-            ground_transform.translation.y = player_y;
-        }
+    // Get window size to calculate dynamic boundaries
+    let Some(window) = window_query.iter().next() else {
+        return;
+    };
+
+    // Calculate dynamic camera boundaries based on window size
+    // Boundaries are proportional to the window dimensions
+    let camera_boundary_x = ((window.width() / 2.) - CAMERA_BOUNDARY_X).max(0.);
+    let camera_boundary_y = ((window.height() / 2.) - CAMERA_BOUNDARY_Y).max(0.);
+
+    let player_x = player_transform.translation.x;
+    let player_y = player_transform.translation.y;
+    let camera_x = camera_transform.translation.x;
+    let camera_y = camera_transform.translation.y;
+
+    // Calculate the offset between camera and player
+    let offset_x = player_x - camera_x;
+    let offset_y = player_y - camera_y;
+
+    // Only move camera if player goes outside the boundary
+    let mut new_camera_x = camera_x;
+    let mut new_camera_y = camera_y;
+
+    // Check horizontal boundary
+    if offset_x > camera_boundary_x {
+        new_camera_x = player_x - camera_boundary_x;
+    } else if offset_x < -camera_boundary_x {
+        new_camera_x = player_x + camera_boundary_x;
     }
+
+    // Check vertical boundary
+    if offset_y > camera_boundary_y {
+        new_camera_y = player_y - camera_boundary_y;
+    } else if offset_y < -camera_boundary_y {
+        new_camera_y = player_y + camera_boundary_y;
+    }
+
+    // Update camera position
+    camera_transform.translation.x = new_camera_x;
+    camera_transform.translation.y = new_camera_y;
 }
