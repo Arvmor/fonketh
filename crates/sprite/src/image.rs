@@ -1,4 +1,4 @@
-use crate::sprite::character::HAIR_COLOR;
+use crate::character::HAIR_COLOR;
 use game_contract::prelude::keccak256;
 use image::{ImageReader, Rgba};
 use std::{

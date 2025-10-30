@@ -1,4 +1,4 @@
-use crate::sprite::Color;
+use crate::Color;
 use image::Rgba;
 
 /// Hair Color

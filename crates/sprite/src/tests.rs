@@ -1,20 +1,12 @@
-/// Player Character Specifications
-pub mod character;
-/// Sprite Image Module
-mod image;
-
-pub use image::{Color, SpriteImage};
-
 #[cfg(test)]
-mod tests {
-    use crate::sprite::character::HAIR_COLOR;
-    use crate::sprite::image::{Color, SpriteImage};
+mod integration_tests {
+    use crate::character::HAIR_COLOR;
+    use crate::image::{Color, SpriteImage};
     use std::collections::HashMap;
 
     #[test]
     fn load_sprite_sheet() -> anyhow::Result<()> {
         SpriteImage::new("../../assets/textures/characters/gabe-idle-run.png")?;
-
         Ok(())
     }
 
