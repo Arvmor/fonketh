@@ -4,7 +4,7 @@ use crate::movements::{
     update_ground_position,
 };
 use crate::prelude::*;
-pub use bevy::input::keyboard::{KeyCode, KeyboardInput};
+use bevy::asset::UnapprovedPathMode;
 use bevy::prelude::*;
 use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
@@ -33,29 +33,27 @@ impl Interface {
         P: Identifier<Id = I> + Player + Sync + Send + 'static,
         I: Hash + Eq + Clone + Sync + Send + Display + 'static,
     {
-        let sender = KeyEventSender(channel);
-        let world = WorldStateResource(world);
-
         // Config plugins
         let image_plugin = ImagePlugin::default_nearest();
-        let asset_plugin: AssetPlugin = AssetPlugin {
+        let asset_plugin = AssetPlugin {
             file_path: "./".to_string(),
-            unapproved_path_mode: bevy::asset::UnapprovedPathMode::Allow,
+            unapproved_path_mode: UnapprovedPathMode::Allow,
             ..Default::default()
         };
 
         let app = App::new()
             // Channel to pass Events to core
-            .insert_resource(sender)
-            .insert_resource(world)
+            .insert_resource(KeyEventSender(channel))
+            .insert_resource(WorldStateResource(world))
             .insert_resource(SpawnedPlayers::<P>::default())
             .insert_resource(PlayerStates::<P>::default())
             .insert_resource(MiningRewards::default())
             .insert_resource(ChatInputText::default())
-            .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin)) // prevents blurry sprites
+            // prevents blurry sprites
+            .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin))
             .add_systems(Startup, setup)
             .add_systems(Update, capture_key_events::<F, Po>)
-            .add_systems(Update, check_shutdown_conditions::<W>) // Add this system
+            .add_systems(Update, check_shutdown_conditions::<W>)
             .add_systems(Update, track_network_movements::<W, P, I>)
             .add_systems(Update, execute_animations::<W, P, I>)
             .add_systems(Update, spawn_new_players::<W, P, I>)
