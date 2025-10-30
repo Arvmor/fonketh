@@ -4,7 +4,6 @@ use crate::movements::{
     update_ground_position,
 };
 use crate::prelude::*;
-use bevy::asset::UnapprovedPathMode;
 use bevy::prelude::*;
 use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
@@ -36,8 +35,7 @@ impl Interface {
         // Config plugins
         let image_plugin = ImagePlugin::default_nearest();
         let asset_plugin = AssetPlugin {
-            file_path: "./".to_string(),
-            unapproved_path_mode: UnapprovedPathMode::Allow,
+            file_path: "./../..".to_string(),
             ..Default::default()
         };
 
@@ -82,7 +80,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((Text::default(), ChatInput));
 
     // Spawn the grass background
-    let image = asset_server.load("../../assets/textures/background/full.png");
+    let image = asset_server.load("./assets/textures/background/full.png");
     commands.spawn((
         Sprite { image, ..default() },
         Transform::from_translation(Vec3::new(0., 0., -1.)).with_scale(Vec3::splat(1.5)),
@@ -102,10 +100,10 @@ fn spawn_new_players<W, P, I>(
     P: Identifier<Id = I> + Player + Sync + Send + 'static,
     I: Sync + Send + Clone + Hash + Eq + Display + 'static,
 {
-    let all_players = world_state.0.get_all_players();
-    let path = Path::new("E:\\side\\fonketh\\assets\\textures\\characters\\gabe-idle-run.png");
+    // Plain Character Sprite Path
+    let path = Path::new("./assets/textures/characters/gabe-idle-run.png");
 
-    for (peer_id, character) in all_players {
+    for (peer_id, character) in world_state.0.get_all_players() {
         // If the player has already been spawned, skip
         if !spawned_players.spawned.insert(peer_id.clone()) {
             continue;
