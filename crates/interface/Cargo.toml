@@ -3,7 +3,11 @@ name = "game_interface"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["custom_sprites"]
+custom_sprites = ["game_sprite"]
+
 [dependencies]
+game_sprite = { workspace = true, optional = true }
 game_primitives.workspace = true
-game_sprite.workspace = true
 bevy = "0.17.2"

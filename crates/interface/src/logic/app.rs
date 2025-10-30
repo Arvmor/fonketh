@@ -7,7 +7,6 @@ use crate::prelude::*;
 use bevy::prelude::*;
 use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
-use game_sprite::SpriteImage;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::path::Path;
@@ -49,7 +48,10 @@ impl Interface {
             .insert_resource(ChatInputText::default())
             // prevents blurry sprites
             .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin))
+            // Startup systems
             .add_systems(Startup, setup)
+            .add_systems(Startup, setup_hud)
+            // Update systems
             .add_systems(Update, capture_key_events::<F, Po>)
             .add_systems(Update, check_shutdown_conditions::<W>)
             .add_systems(Update, track_network_movements::<W, P, I>)
@@ -59,6 +61,7 @@ impl Interface {
             .add_systems(Update, update_ground_position::<W, P, I>)
             .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
+            .add_systems(Update, update_player_count::<W>)
             .add_systems(Update, handle_chat_input::<F, Po>)
             .add_systems(Update, display_chat_messages::<W>)
             .run();
@@ -68,16 +71,8 @@ impl Interface {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Spawn 2D camera
     commands.spawn(Camera2d);
-
-    // Spawn the status bar in the top left
-    commands.spawn((Text::default(), StatusBar));
-
-    // Spawn the chat box in the bottom left
-    commands.spawn((Text::default(), ChatBox));
-
-    // Spawn the chat input field
-    commands.spawn((Text::default(), ChatInput));
 
     // Spawn the grass background
     let image = asset_server.load("./assets/textures/background/full.png");
@@ -110,10 +105,12 @@ fn spawn_new_players<W, P, I>(
         }
 
         // Modify the sprite image based on the player's color
-        let path = SpriteImage::from_identifier(path, peer_id.to_string()).unwrap_or_else(|e| {
-            error!("Failed to modify sprite image: {e}");
-            path.to_path_buf()
-        });
+        #[cfg(feature = "custom_sprites")]
+        let path = game_sprite::SpriteImage::from_identifier(path, peer_id.to_string())
+            .unwrap_or_else(|e| {
+                error!("Failed to modify sprite image: {e}");
+                path.to_path_buf()
+            });
 
         // Load the sprite sheet using the `AssetServer`
         let image = asset_server.load(path);
