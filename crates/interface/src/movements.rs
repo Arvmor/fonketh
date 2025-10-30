@@ -203,6 +203,7 @@ pub fn handle_idle_transitions<W, P, I>(
 pub fn follow_main_player_with_camera(
     main_player_query: Query<&Transform, (With<MainPlayer>, Without<Camera2d>)>,
     mut camera_query: Query<&mut Transform, With<Camera2d>>,
+    window_query: Query<&Window>,
 ) {
     // Get the main player's position (using iter to get the first result)
     let Some(player_transform) = main_player_query.iter().next() else {
@@ -213,6 +214,16 @@ pub fn follow_main_player_with_camera(
     let Some(mut camera_transform) = camera_query.iter_mut().next() else {
         return;
     };
+
+    // Get window size to calculate dynamic boundaries
+    let Some(window) = window_query.iter().next() else {
+        return;
+    };
+
+    // Calculate dynamic camera boundaries based on window size
+    // Boundaries are proportional to the window dimensions
+    let camera_boundary_x = (window.width() / 2.0) - CAMERA_BOUNDARY_X;
+    let camera_boundary_y = (window.height() / 2.0) - CAMERA_BOUNDARY_Y;
 
     let player_x = player_transform.translation.x;
     let player_y = player_transform.translation.y;
@@ -228,17 +239,17 @@ pub fn follow_main_player_with_camera(
     let mut new_camera_y = camera_y;
 
     // Check horizontal boundary
-    if offset_x > CAMERA_BOUNDARY_X {
-        new_camera_x = player_x - CAMERA_BOUNDARY_X;
-    } else if offset_x < -CAMERA_BOUNDARY_X {
-        new_camera_x = player_x + CAMERA_BOUNDARY_X;
+    if offset_x > camera_boundary_x {
+        new_camera_x = player_x - camera_boundary_x;
+    } else if offset_x < -camera_boundary_x {
+        new_camera_x = player_x + camera_boundary_x;
     }
 
     // Check vertical boundary
-    if offset_y > CAMERA_BOUNDARY_Y {
-        new_camera_y = player_y - CAMERA_BOUNDARY_Y;
-    } else if offset_y < -CAMERA_BOUNDARY_Y {
-        new_camera_y = player_y + CAMERA_BOUNDARY_Y;
+    if offset_y > camera_boundary_y {
+        new_camera_y = player_y - camera_boundary_y;
+    } else if offset_y < -camera_boundary_y {
+        new_camera_y = player_y + camera_boundary_y;
     }
 
     // Update camera position
