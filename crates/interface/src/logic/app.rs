@@ -1,7 +1,7 @@
 use crate::minings::{track_mining_events, update_status_bar};
 use crate::movements::{
-    capture_key_events, execute_animations, handle_idle_transitions, track_network_movements,
-    update_ground_position,
+    capture_key_events, execute_animations, follow_main_player_with_camera,
+    handle_idle_transitions, track_network_movements,
 };
 use crate::prelude::*;
 use bevy::prelude::*;
@@ -58,7 +58,7 @@ impl Interface {
             .add_systems(Update, execute_animations::<W, P, I>)
             .add_systems(Update, spawn_new_players::<W, P, I>)
             .add_systems(Update, handle_idle_transitions::<W, P, I>)
-            .add_systems(Update, update_ground_position::<W, P, I>)
+            .add_systems(Update, follow_main_player_with_camera)
             .add_systems(Update, track_mining_events::<W>)
             .add_systems(Update, update_status_bar)
             .add_systems(Update, update_player_count::<W>)
@@ -97,6 +97,7 @@ fn spawn_new_players<W, P, I>(
 {
     // Plain Character Sprite Path
     let path = Path::new("./assets/textures/characters/gabe-idle-run.png");
+    let local_player_id = world_state.0.identifier();
 
     for (peer_id, character) in world_state.0.get_all_players() {
         // If the player has already been spawned, skip
@@ -123,8 +124,11 @@ fn spawn_new_players<W, P, I>(
         let index = animation_config.first_sprite_index;
         let texture_atlas = Some(TextureAtlas { layout, index });
 
+        // Check if this is the main/local player
+        let is_main_player = peer_id == local_player_id;
+
         // Spawn the player character
-        commands.spawn((
+        let mut entity_commands = commands.spawn((
             Sprite {
                 image,
                 texture_atlas,
@@ -139,6 +143,11 @@ fn spawn_new_players<W, P, I>(
             animation_config,
             PlayerEntity::<P> { peer_id },
         ));
+
+        // Add MainPlayer component if this is the local player
+        if is_main_player {
+            entity_commands.insert(MainPlayer);
+        }
     }
 }
 

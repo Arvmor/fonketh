@@ -17,6 +17,10 @@ pub struct PlayerEntity<I: Identifier> {
 #[derive(Component)]
 pub struct Ground;
 
+/// Component to identify the main/local player
+#[derive(Component)]
+pub struct MainPlayer;
+
 /// Component to identify the HUD root container
 #[derive(Component)]
 pub struct HudRoot;
