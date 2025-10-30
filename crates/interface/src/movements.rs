@@ -222,8 +222,8 @@ pub fn follow_main_player_with_camera(
 
     // Calculate dynamic camera boundaries based on window size
     // Boundaries are proportional to the window dimensions
-    let camera_boundary_x = (window.width() / 2.0) - CAMERA_BOUNDARY_X;
-    let camera_boundary_y = (window.height() / 2.0) - CAMERA_BOUNDARY_Y;
+    let camera_boundary_x = ((window.width() / 2.) - CAMERA_BOUNDARY_X).max(0.);
+    let camera_boundary_y = ((window.height() / 2.) - CAMERA_BOUNDARY_Y).max(0.);
 
     let player_x = player_transform.translation.x;
     let player_y = player_transform.translation.y;
