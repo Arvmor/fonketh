@@ -12,7 +12,7 @@ mod integration_tests {
 
     #[test]
     fn modify_color() -> anyhow::Result<()> {
-        let path = "../../assets/textures/characters/gabe.png";
+        let path = "../../assets/textures/characters/gabe-idle-run.png";
         let mut sprite_image = SpriteImage::new(path)?;
 
         // Create a map of colors to modify
