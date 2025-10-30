@@ -7,17 +7,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// A sprite image
-pub struct SpriteImage {
-    image: image::DynamicImage,
-}
-
 /// Hair Color
 pub const HAIR_COLOR: Color = Color(Rgba([0x79, 0x3d, 0x4e, 0xff]));
+/// Skin Color
 pub const SKIN_COLOR: Color = Color(Rgba([0xfb, 0x95, 0x85, 0xff]));
+/// Eyes Color
 pub const EYES_COLOR: Color = Color(Rgba([0x85, 0xa3, 0xc7, 0xff]));
+/// Clothing Color
 pub const CLOTHING_COLOR: Color = Color(Rgba([0x01, 0x76, 0x87, 0xff]));
 
+/// Color - RGBA
+///
+/// Used to store a color in RGBA format
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct Color(pub Rgba<u8>);
 
@@ -42,11 +43,15 @@ impl Color {
     }
 }
 
-// Impl Ref for Color
 impl AsRef<Rgba<u8>> for Color {
     fn as_ref(&self) -> &Rgba<u8> {
         &self.0
     }
+}
+
+/// A sprite image
+pub struct SpriteImage {
+    image: image::DynamicImage,
 }
 
 impl SpriteImage {
