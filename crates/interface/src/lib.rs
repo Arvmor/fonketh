@@ -22,4 +22,4 @@ mod prelude {
     pub use game_primitives::*;
 }
 
-pub use logic::{Interface, KeyCode, KeyboardInput, keyboard_events};
+pub use logic::{Interface, keyboard_events};
