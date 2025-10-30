@@ -7,7 +7,6 @@ use crate::prelude::*;
 use bevy::prelude::*;
 use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
-use game_sprite::SpriteImage;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::path::Path;
@@ -110,10 +109,12 @@ fn spawn_new_players<W, P, I>(
         }
 
         // Modify the sprite image based on the player's color
-        let path = SpriteImage::from_identifier(path, peer_id.to_string()).unwrap_or_else(|e| {
-            error!("Failed to modify sprite image: {e}");
-            path.to_path_buf()
-        });
+        #[cfg(feature = "custom_sprites")]
+        let path = game_sprite::SpriteImage::from_identifier(path, peer_id.to_string())
+            .unwrap_or_else(|e| {
+                error!("Failed to modify sprite image: {e}");
+                path.to_path_buf()
+            });
 
         // Load the sprite sheet using the `AssetServer`
         let image = asset_server.load(path);
