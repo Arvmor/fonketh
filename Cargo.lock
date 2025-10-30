@@ -4223,6 +4223,7 @@ name = "game_sprite"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "game_contract",
  "image",
 ]
 

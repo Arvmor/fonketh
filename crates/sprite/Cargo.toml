@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
+game_contract.workspace = true
 image = "0.25.8"

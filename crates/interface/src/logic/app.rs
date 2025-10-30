@@ -9,8 +9,7 @@ use bevy::prelude::*;
 use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
 use game_sprite::SpriteImage;
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::Display;
 use std::hash::Hash;
 use std::path::Path;
 use std::sync::mpsc::Sender;
@@ -32,7 +31,7 @@ impl Interface {
         Po: Position<Unit = i32> + Send + Sync + 'static,
         W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
         P: Identifier<Id = I> + Player + Sync + Send + 'static,
-        I: Hash + Eq + Clone + Sync + Send + 'static + Debug,
+        I: Hash + Eq + Clone + Sync + Send + Display + 'static,
     {
         let sender = KeyEventSender(channel);
         let world = WorldStateResource(world);
@@ -103,10 +102,10 @@ fn spawn_new_players<W, P, I>(
 ) where
     W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
     P: Identifier<Id = I> + Player + Sync + Send + 'static,
-    I: Sync + Send + 'static + Clone + Hash + Eq + Debug,
+    I: Sync + Send + Clone + Hash + Eq + Display + 'static,
 {
     let all_players = world_state.0.get_all_players();
-    let path = Path::new("../../assets/textures/characters/gabe-idle-run.png");
+    let path = Path::new("E:\\side\\fonketh\\assets\\textures\\characters\\gabe-idle-run.png");
 
     for (peer_id, character) in all_players {
         // If the player has already been spawned, skip
@@ -115,28 +114,13 @@ fn spawn_new_players<W, P, I>(
         }
 
         // Modify the sprite image based on the player's color
-        info!("Modifying sprite image for player: {:?}", path);
-        let result = SpriteImage::new(path).and_then(|mut s| {
-            // Modify the sprite
-            let mapping = HashMap::from([(
-                game_sprite::HAIR_COLOR,
-                game_sprite::Color::from_bytes(&[0x89, 0xc7, 0x85, 0xff]),
-            )]);
-            s.modify_color(&mapping)?;
-
-            // Save the modified sprite image
-            let path = path.with_file_name(format!("gabe-idle-run-{:?}.png", peer_id));
-            s.save(&path)?;
-            Ok(path)
-        });
-
-        let sprite_path = result.unwrap_or_else(|e| {
+        let path = SpriteImage::from_identifier(path, peer_id.to_string()).unwrap_or_else(|e| {
             error!("Failed to modify sprite image: {e}");
             path.to_path_buf()
         });
 
         // Load the sprite sheet using the `AssetServer`
-        let image = asset_server.load(sprite_path);
+        let image = asset_server.load(path);
         let texture_atlas_layout =
             TextureAtlasLayout::from_grid(UVec2::splat(24), 7, 1, None, None);
         let layout = texture_atlas_layouts.add(texture_atlas_layout);
