@@ -1,0 +1,121 @@
+name: Build Release Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            binary_name: app.exe
+            artifact_name: fonketh-windows-x86_64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            binary_name: app
+            artifact_name: fonketh-macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            binary_name: app
+            artifact_name: fonketh-macos-aarch64
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }} --bin app
+
+      - name: Create release archive (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir -p release
+          copy target\${{ matrix.target }}\release\${{ matrix.binary_name }} release\
+          cd release
+          7z a ../${{ matrix.artifact_name }}.zip ${{ matrix.binary_name }}
+          cd ..
+
+      - name: Create release archive (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p release
+          cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} release/
+          cd release
+          zip -r ../${{ matrix.artifact_name }}.zip ${{ matrix.binary_name }}
+          cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.zip
+          retention-days: 30
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*/fonketh-windows-x86_64.zip
+            artifacts/*/fonketh-macos-x86_64.zip
+            artifacts/*/fonketh-macos-aarch64.zip
+

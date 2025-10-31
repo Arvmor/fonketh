@@ -1,171 +1,133 @@
-# Fonketh - P2P Mining Pool Game
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-Fonketh is a **Peer-to-Peer Mining Pool** implemented as a **Gamified Proof-of-Work Node**. It combines blockchain mining mechanics with a multiplayer game interface, allowing players to mine CREATE2 addresses and earn ERC-20 tokens based on their mining contributions.
+Fonketh is a P2P mining pool / "Gameified PoW Node" built in Rust. Players join a decentralized mining pool to compound their mining power and earn $FONK tokens based on their contributions. The implementation uses CREATE2 mining logic where players mine addresses based on network difficulty and gossip results across a P2P network.
 
-### Key Features
+Live PoC Contract on Base Chain: `0xd61e2af6a7c347713c478c4e9fef8fe5a22c5459`
 
-- **Decentralized Mining Pool**: Players join a P2P network to collectively mine CREATE2 addresses
-- **Gamified Interface**: 2D character-based game with movement, chat, and visual feedback
-- **Blockchain Integration**: Live contract on Base Chain for reward distribution
-- **Real-time Multiplayer**: P2P networking with gossip protocol for player coordination
-- **Token Rewards**: ERC-20 tokens distributed based on mining success
+## Build and Run Commands
 
-## Development Workflow
+```bash
+# Build the entire workspace
+cargo build --release
 
-### Code Style and Standards
+# Run the application (binary in crates/app)
+cargo run --bin app --release
 
-1. **Formatting**: Always use nightly rustfmt
+# Run with custom private key file
+cargo run --bin app --release path/to/key.txt
 
-   ```bash
-   cargo +nightly fmt --all
-   ```
+# Run with environment variable
+PRIVATE_KEY=<hex_private_key> cargo run --bin app --release
 
-2. **Linting**: Run clippy with all features
-   ```bash
-   RUSTFLAGS="-D warnings" cargo +nightly clippy --workspace --lib --examples --tests --benches --all-features --locked
-   ```
+# Run tests
+cargo test
+
+# Run tests for specific crate
+cargo test -p game_contract
+cargo test -p game_network
+```
+
+## Private Key Management
+
+The app loads a private key in the following priority order:
+1. `PRIVATE_KEY` environment variable
+2. Command-line argument (path to key file)
+3. `./private.key` file (default)
+4. Generates a new key and saves to `./private.key` if none found
 
 ## Architecture
 
-### Project Structure
+### Workspace Structure
 
-```
-fonketh/
-├── crates/                    # Rust workspace crates
-│   ├── app/                   # Main application entry point
-│   ├── contract/              # Blockchain contract integration
-│   ├── core/                  # Core game logic and world management
-│   ├── interface/             # 2D game interface and rendering
-│   ├── network/               # P2P networking implementation
-│   ├── primitives/            # Common data types and events
-│   └── sprite/                # Sprite rendering and color management
-├── contracts/                 # Smart contract files
-│   ├── Rewarder.sol          # Main reward distribution contract
-│   └── rewarder.json         # Contract ABI
-├── assets/                    # Game assets
-│   └── textures/             # Character sprites and backgrounds
-├── docs/                      # Documentation and diagrams
-└── Dockerfile                # Container configuration
-```
+The codebase is organized as a Cargo workspace with 7 crates:
 
-### Core Components
+- **game_app** (`crates/app`): Main binary entry point. Initializes the World with a Character and starts the game loop.
 
-#### 1. **App Crate** (`crates/app/`)
+- **game_core** (`crates/core`): Core game logic containing the World state management, player pool, and main event loop. The World orchestrates three main components:
+  - Network layer (P2P gossip)
+  - Mining contract client (CREATE2 mining)
+  - Interface layer (optional, Bevy UI)
 
-- **Purpose**: Main application entry point
-- **Key Files**: `main.rs`
-- **Functionality**:
-  - Initializes the game world
-  - Loads private key for blockchain interaction
-  - Sets up logging and tracing
-  - Starts the core game loop
+- **game_contract** (`crates/contract`): Blockchain interaction layer using Alloy. Contains:
+  - `RewarderClient`: Interfaces with the Base chain contract
+  - `Miner`: Implements CREATE2 mining logic, attempting to find addresses below network difficulty
+  - Contract ABI loaded from `contracts/rewarder.json`
 
-#### 2. **Core Crate** (`crates/core/`)
+- **game_network** (`crates/network`): P2P networking using libp2p with gossipsub, mDNS discovery, and Kademlia DHT.
 
-- **Purpose**: Central game logic and world management
-- **Key Modules**:
-  - `world.rs`: Main game world with player management
-  - `player/`: Character system and movement
-  - `map/`: World state and coordinate system
-  - `movements/`: Position and movement logic
-- **Functionality**:
-  - Manages player pool and game state
-  - Handles mining rewards and batch processing
-  - Coordinates between network and interface
-  - Processes game events (movement, mining, chat)
+- **game_interface** (`crates/interface`): Optional Bevy-based game UI. Enabled via `interface` feature flag in game_core. Handles keyboard input, camera, HUD, chat, and sprite rendering.
 
-#### 3. **Contract Crate** (`crates/contract/`)
+- **game_primitives** (`crates/primitives`): Shared types and traits (GameEvent, WorldState, ExitStatus, Identifier).
 
-- **Purpose**: Blockchain integration and mining logic
-- **Key Files**:
-  - `lib.rs`: Rewarder client for contract interaction
-  - `mine/miner.rs`: CREATE2 mining implementation
-- **Functionality**:
-  - Connects to Base Chain via RPC
-  - Implements CREATE2 address mining algorithm
-  - Manages reward distribution transactions
-  - Handles contract state synchronization
+- **game_sprite** (`crates/sprite`): Character sprite animation logic and asset handling (optional dependency of game_interface).
 
-#### 4. **Network Crate** (`crates/network/`)
+### Key Architectural Patterns
 
-- **Purpose**: P2P networking and peer discovery
-- **Key Files**: `p2p/network.rs`
-- **Functionality**:
-  - Implements libp2p-based networking
-  - Uses GossipSub for message broadcasting
-  - Includes mDNS for local peer discovery
-  - Supports Kademlia DHT for peer routing
-  - Handles QUIC and TCP transport protocols
+**Event-Driven World Updates**: The World runs a main loop in `crates/core/src/map/world.rs:130` that:
+1. Receives keyboard events from the interface (if enabled)
+2. Receives network messages from P2P layer
+3. Runs mining attempts continuously
+4. Batches 10 mined addresses and submits on-chain claims
 
-#### 5. **Interface Crate** (`crates/interface/`)
+All events are serialized as `GameEvent<(Address, U256), Position>` and gossiped via libp2p.
 
-- **Purpose**: 2D game interface and user interaction
-- **Key Modules**:
-  - `logic/`: Game loop and event handling
-  - `components/`: UI components and rendering
-  - `movements/`: Keyboard input handling
-  - `chat/`: Chat system implementation
-- **Functionality**:
-  - Renders 2D character sprites
-  - Handles keyboard input for movement
-  - Manages chat interface
-  - Displays mining progress and rewards
+**Thread-Safe State Management**: The World uses `Arc<RwLock<>>` for shared state:
+- `PlayersPool`: HashMap of all connected players
+- `mining_rewards`: Counter of successful mines
+- `mined`: HashSet of mined addresses pending claim
+- `messages`: Chat message history
 
-#### 6. **Primitives Crate** (`crates/primitives/`)
+**Feature Flags**:
+- `game_core[interface]`: Enables Bevy UI (default off)
+- `game_interface[custom_sprites]`: Enables custom sprite rendering (default on)
 
-- **Purpose**: Common data types and game events
-- **Key Files**: `events.rs`
-- **Functionality**:
-  - Defines game event types (movement, mining, chat, quit)
-  - Provides serialization/deserialization
-  - Manages game state transitions
+### Mining Logic
 
-#### 7. **Sprite Crate** (`crates/sprite/`)
+Mining happens in `crates/contract/src/mine/miner.rs:37`:
+```rust
+// keccak256(abi.encodePacked(nonce, minerAddress))
+let salt = keccak256((nonce, self.address).abi_encode_packed());
+let mined = self.factory.create2(salt, init_hash);
 
-- **Purpose**: Sprite rendering and color management
-- **Key Files**: `lib.rs`
-- **Functionality**:
-  - Loads and processes sprite images
-  - Generates unique colors based on player identifiers
-  - Modifies sprite colors for player differentiation
-  - Handles sprite sheet processing
-
-## Networking
-
-### P2P Architecture
-
-- **Protocol**: libp2p with GossipSub
-- **Transport**: QUIC and TCP
-- **Discovery**: mDNS for local peers, Kademlia DHT for global discovery
-
-## Development
-
-### Prerequisites
-
-- Rust 1.70+
-- Docker (optional)
-- RPC access to the blockchain
-
-### Building
-
-```bash
-# Build the project
-cargo build --release
-
-# Run with private key
-cargo run --release --bin app <path_to_private_key>
-
-# Or set environment variable
-PRIVATE_KEY=<your_private_key> cargo run --release --bin app
+// If mined address < difficulty threshold, success
+if mined < self.difficulty { ... }
 ```
 
-## Contributing
+The miner increments a nonce counter on each attempt. When 10 successful mines are accumulated, they're batch-submitted to the contract via `processMiningArray()`.
 
-This project uses a modular Rust workspace architecture. Each crate has a specific responsibility and can be developed independently. The main integration points are:
+### Network Protocol
 
-1. **Core ↔ Network**: Game events and player state synchronization
-2. **Core ↔ Contract**: Mining results and reward distribution
-3. **Core ↔ Interface**: User input and visual feedback
-4. **Network ↔ All**: P2P message broadcasting and reception
+P2P communication uses a single gossipsub topic `"game_events"`. All GameEvent types (PlayerMovement, PlayerFound, ChatMessage, Quit) are JSON-serialized and gossiped to peers. The network layer is in `crates/network/src/p2p/`.
+
+### Blockchain Integration
+
+Contract interaction via Alloy:
+- RPC endpoint: `https://mainnet.base.org` (chain ID 8453)
+- Contract calls: `difficulty()`, `initHash()`, `processMiningArray()`
+- Transaction flow: submit batch → register pending tx → wait for confirmation
+- Spawns async tasks for claim transactions to avoid blocking the main loop
+
+## Development Configuration
+
+The `game_core` crate uses profile optimizations:
+```toml
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+```
+
+This enables moderate optimization for the core crate while fully optimizing dependencies, balancing compilation speed with runtime performance during development.
+
+## Important Implementation Details
+
+- The main event loop never exits until `ExitStatus.exit()` is called (on Quit event or Ctrl+C).
+- Player positions are tracked as `Position` (delta movements, not absolute coordinates).
+- When a new player's movement is seen, they're auto-added to the players pool with default position.
+- Camera boundaries in the interface prevent camera movement until the player is 150px from center.
+- Mining runs continuously in the main loop with no throttling - one attempt per iteration.
