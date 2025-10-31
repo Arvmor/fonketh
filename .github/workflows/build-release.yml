@@ -106,8 +106,15 @@ jobs:
         with:
           path: artifacts
 
-      - name: Create Release
-        id: create_release
+      - name: Find artifact files
+        id: find_artifacts
+        shell: bash
+        run: |
+          echo "windows=$(find artifacts -name 'fonketh-windows-x86_64.zip' | head -1)" >> $GITHUB_OUTPUT
+          echo "macos_x86=$(find artifacts -name 'fonketh-macos-x86_64.zip' | head -1)" >> $GITHUB_OUTPUT
+          echo "macos_arm=$(find artifacts -name 'fonketh-macos-aarch64.zip' | head -1)" >> $GITHUB_OUTPUT
+
+      - name: Create or Update Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
@@ -115,7 +122,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/*/fonketh-windows-x86_64.zip
-            artifacts/*/fonketh-macos-x86_64.zip
-            artifacts/*/fonketh-macos-aarch64.zip
+            ${{ steps.find_artifacts.outputs.windows }}
+            ${{ steps.find_artifacts.outputs.macos_x86 }}
+            ${{ steps.find_artifacts.outputs.macos_arm }}
+          generate_release_notes: false
 
