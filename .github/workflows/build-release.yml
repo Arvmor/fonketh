@@ -58,12 +58,11 @@ jobs:
 
       - name: Create release archive (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          mkdir -p release
-          copy target\${{ matrix.target }}\release\${{ matrix.binary_name }} release\
-          cd release
-          7z a ../${{ matrix.artifact_name }}.zip ${{ matrix.binary_name }}
-          cd ..
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item target\${{ matrix.target }}\release\${{ matrix.binary_name }} release\
+          Compress-Archive -Path release\${{ matrix.binary_name }} -DestinationPath ${{ matrix.artifact_name }}.zip -Force
 
       - name: Create release archive (macOS)
         if: matrix.os == 'macos-latest'
