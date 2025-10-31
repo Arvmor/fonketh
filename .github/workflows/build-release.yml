@@ -40,6 +40,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cross-compilation targets
+        run: |
+          rustup target add ${{ matrix.target }}
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
