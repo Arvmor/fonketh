@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., v0.1.0)'
+        description: "Release version (e.g., v0.1.0)"
         required: true
-        default: 'v0.1.0'
+        default: "v0.1.0"
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build:
@@ -58,30 +58,26 @@ jobs:
             ${{ runner.os }}-cargo-${{ matrix.target }}-
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --bin app
+        run: cargo build --release --target ${{ matrix.target }} --bin app --features game_core/interface
 
-      - name: Create release archive (Windows)
+      - name: Prepare artifact (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item target\${{ matrix.target }}\release\${{ matrix.binary_name }} release\
-          Compress-Archive -Path release\${{ matrix.binary_name }} -DestinationPath ${{ matrix.artifact_name }}.zip -Force
 
-      - name: Create release archive (macOS)
+      - name: Prepare artifact (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           mkdir -p release
           cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} release/
-          cd release
-          zip -r ../${{ matrix.artifact_name }}.zip ${{ matrix.binary_name }}
-          cd ..
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}.zip
+          path: release/${{ matrix.binary_name }}
           retention-days: 30
 
   create-release:
@@ -113,9 +109,9 @@ jobs:
         id: find_artifacts
         shell: bash
         run: |
-          echo "windows=$(find artifacts -name 'fonketh-windows-x86_64.zip' | head -1)" >> $GITHUB_OUTPUT
-          echo "macos_x86=$(find artifacts -name 'fonketh-macos-x86_64.zip' | head -1)" >> $GITHUB_OUTPUT
-          echo "macos_arm=$(find artifacts -name 'fonketh-macos-aarch64.zip' | head -1)" >> $GITHUB_OUTPUT
+          echo "windows=$(find artifacts -path '*/fonketh-windows-x86_64/*' -name 'app.exe' -type f | head -1)" >> $GITHUB_OUTPUT
+          echo "macos_x86=$(find artifacts -path '*/fonketh-macos-x86_64/*' -name 'app' -type f | head -1)" >> $GITHUB_OUTPUT
+          echo "macos_arm=$(find artifacts -path '*/fonketh-macos-aarch64/*' -name 'app' -type f | head -1)" >> $GITHUB_OUTPUT
 
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
@@ -129,4 +125,3 @@ jobs:
             ${{ steps.find_artifacts.outputs.macos_x86 }}
             ${{ steps.find_artifacts.outputs.macos_arm }}
           generate_release_notes: false
-
