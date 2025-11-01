@@ -12,7 +12,7 @@ Allows nodes to join a decentralized mining pool and **compound their mining pow
 
 The nodes are rewarded with `$FONK` tokens based on their mining power & contributions.
 
-<video src="./docs/v0.1.0demo.mp4" alt="Fonketh Contract" autoplay loop muted>
+</ video src="./docs/v0.1.0demo.mp4" alt="Fonketh Contract" autoplay loop muted>
 
 ## Implementation
 
