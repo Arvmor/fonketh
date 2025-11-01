@@ -105,13 +105,21 @@ jobs:
         with:
           path: artifacts
 
-      - name: Find artifact files
-        id: find_artifacts
+      - name: Rename artifacts with unique names
         shell: bash
         run: |
-          echo "windows=$(find artifacts -path '*/fonketh-windows-x86_64/*' -name 'app.exe' -type f | head -1)" >> $GITHUB_OUTPUT
-          echo "macos_x86=$(find artifacts -path '*/fonketh-macos-x86_64/*' -name 'app' -type f | head -1)" >> $GITHUB_OUTPUT
-          echo "macos_arm=$(find artifacts -path '*/fonketh-macos-aarch64/*' -name 'app' -type f | head -1)" >> $GITHUB_OUTPUT
+          mkdir -p release-binaries
+          if [ -f "artifacts/fonketh-windows-x86_64/app.exe" ]; then
+            cp artifacts/fonketh-windows-x86_64/app.exe release-binaries/fonketh-windows-x86_64.exe
+          fi
+          if [ -f "artifacts/fonketh-macos-x86_64/app" ]; then
+            cp artifacts/fonketh-macos-x86_64/app release-binaries/fonketh-macos-x86_64
+            chmod +x release-binaries/fonketh-macos-x86_64
+          fi
+          if [ -f "artifacts/fonketh-macos-aarch64/app" ]; then
+            cp artifacts/fonketh-macos-aarch64/app release-binaries/fonketh-macos-aarch64
+            chmod +x release-binaries/fonketh-macos-aarch64
+          fi
 
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
@@ -121,7 +129,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ${{ steps.find_artifacts.outputs.windows }}
-            ${{ steps.find_artifacts.outputs.macos_x86 }}
-            ${{ steps.find_artifacts.outputs.macos_arm }}
+            release-binaries/fonketh-windows-x86_64.exe
+            release-binaries/fonketh-macos-x86_64
+            release-binaries/fonketh-macos-aarch64
           generate_release_notes: false
