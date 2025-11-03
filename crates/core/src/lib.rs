@@ -9,7 +9,7 @@ pub mod world {
     pub use crate::movements::Position;
     pub use crate::player::Character;
     pub use game_contract::prelude::B256;
-    pub use game_network::prelude::Keypair;
+    pub use game_contract::prelude::LocalSigner as Keypair;
     pub use game_primitives::events::GameEvent;
 }
 

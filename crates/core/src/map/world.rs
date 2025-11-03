@@ -3,8 +3,8 @@ use crate::prelude::*;
 use crate::world::Character;
 use game_contract::{Rewarder, RewarderClient};
 use game_network::Peer2Peer;
+use game_network::prelude::Keypair;
 use game_network::prelude::gossipsub::Message;
-use game_network::prelude::{Keypair, PeerId};
 use game_primitives::{ExitStatus, Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -61,14 +61,14 @@ pub struct World<I, B, T = i32> {
     messages: Arc<RwLock<Vec<String>>>,
 }
 
-impl<B> World<PeerId, B, i32>
+impl<B> World<Address, B, i32>
 where
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
     /// Creates a new world
     ///
     /// Initializes the world with the player
-    pub fn new(player: Character<PeerId, B, i32>) -> Self {
+    pub fn new(player: Character<Address, B, i32>) -> Self {
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
         let identifier = player.identifier();
@@ -150,7 +150,7 @@ where
                 && let Ok(signed_message) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
             {
                 info!("Received Network message: {m:?} => {signed_message:?}");
-                self.update(&m.source.unwrap(), &signed_message.data);
+                self.update(&signed_message.address, &signed_message.data);
             }
 
             // Mine a new address
@@ -199,7 +199,7 @@ where
     /// Updates the world
     ///
     /// Based on the Events received
-    pub fn update(&self, identifier: &PeerId, event: &GameEventMessage) {
+    pub fn update(&self, identifier: &Address, event: &GameEventMessage) {
         match event {
             GameEvent::PlayerMovement(p) => {
                 // Update player position

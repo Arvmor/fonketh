@@ -11,10 +11,10 @@ async fn main() -> Result<()> {
 
     // Load private key
     let private_key = load_private_key()?;
-    let keypair = Keypair::ed25519_from_bytes(private_key)?;
+    let keypair = Keypair::from_slice(&*private_key)?;
 
     // Initialize world
-    let character = Character::new(keypair.public().to_peer_id(), 0, (0, 0));
+    let character = Character::new(keypair.address(), 0, (0, 0));
     let world = World::new(character);
     world.initialize(private_key.to_vec()).await?;
 
