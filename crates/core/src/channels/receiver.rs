@@ -1,15 +1,13 @@
 use crate::channels::message::SignedMessage;
-use async_trait::async_trait;
 
 /// Signed Receiver
 ///
 /// Used to receive signed messages from a channel
 /// Verifies the signature of the message
-#[async_trait]
 pub trait SignedReceiver: Receiver {
     /// Receive a signed message from the channel and verify the signature
-    async fn receive_signed(&self) -> anyhow::Result<Option<Self::Message>> {
-        let message = self.try_receive().await?;
+    fn receive_signed(&mut self) -> anyhow::Result<Option<Self::Message>> {
+        let message = self.try_receive()?;
 
         // Verify the signature
         if let Some(signature) = &message {
@@ -23,10 +21,38 @@ pub trait SignedReceiver: Receiver {
 /// Receiver
 ///
 /// Used to receive messages from a channel
-#[async_trait]
 pub trait Receiver {
     type Message: SignedMessage;
 
-    async fn receive(&self) -> anyhow::Result<Self::Message>;
-    async fn try_receive(&self) -> anyhow::Result<Option<Self::Message>>;
+    fn try_receive(&mut self) -> anyhow::Result<Option<Self::Message>>;
+}
+
+impl<T> Receiver for std::sync::mpsc::Receiver<T>
+where
+    T: SignedMessage,
+{
+    type Message = T;
+
+    fn try_receive(&mut self) -> anyhow::Result<Option<Self::Message>> {
+        match self.try_recv() {
+            Ok(message) => Ok(Some(message)),
+            Err(std::sync::mpsc::TryRecvError::Empty) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+impl<T> Receiver for tokio::sync::mpsc::Receiver<T>
+where
+    T: SignedMessage,
+{
+    type Message = T;
+
+    fn try_receive(&mut self) -> anyhow::Result<Option<Self::Message>> {
+        match self.try_recv() {
+            Ok(message) => Ok(Some(message)),
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
