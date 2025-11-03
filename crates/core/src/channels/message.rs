@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use game_contract::prelude::{Address, Signature, Signer, SolValue, keccak256};
+use game_contract::prelude::{Address, Signature, Signer, keccak256};
+use serde::{Deserialize, Serialize};
 
 /// Signed Message
 ///
@@ -33,17 +34,14 @@ pub trait SignableMessage {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SignedMessage<D: SolValue> {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct SignedMessage<D: Serialize> {
     pub data: D,
     pub address: Address,
     pub signature: Signature,
 }
 
-impl<D> SignedMessage<D>
-where
-    D: SolValue,
-{
+impl<D: Serialize> SignedMessage<D> {
     pub fn new(data: D, address: Address) -> Self {
         let signature = Signature::new(Default::default(), Default::default(), Default::default());
 
@@ -55,12 +53,10 @@ where
     }
 }
 
-impl<D> SignableMessage for SignedMessage<D>
-where
-    D: SolValue,
-{
+impl<D: Serialize> SignableMessage for SignedMessage<D> {
     fn encoded_data(&self) -> Vec<u8> {
-        (&self.data.abi_encode(), &self.address).abi_encode()
+        let packed = (&self.data, &self.address);
+        serde_json::to_vec(&packed).unwrap()
     }
 
     fn address(&self) -> &Address {
@@ -73,5 +69,23 @@ where
 
     fn signature_mut(&mut self) -> &mut Signature {
         &mut self.signature
+    }
+}
+
+impl SignableMessage for game_network::prelude::gossipsub::Message {
+    fn encoded_data(&self) -> Vec<u8> {
+        unimplemented!()
+    }
+
+    fn address(&self) -> &Address {
+        unreachable!()
+    }
+
+    fn signature(&self) -> &Signature {
+        unreachable!()
+    }
+
+    fn signature_mut(&mut self) -> &mut Signature {
+        unreachable!()
     }
 }

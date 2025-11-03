@@ -11,3 +11,6 @@ path = "src/main.rs"
 game_core = { workspace = true, features = [] }
 tracing-subscriber.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+game_core = { workspace = true, features = ["interface"] }
