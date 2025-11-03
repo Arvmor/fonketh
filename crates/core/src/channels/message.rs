@@ -1,6 +1,6 @@
+use crate::prelude::{Deserialize, Serialize, error};
 use async_trait::async_trait;
 use game_contract::prelude::{Address, Signature, Signer, keccak256};
-use serde::{Deserialize, Serialize};
 
 /// Signed Message
 ///
@@ -19,6 +19,7 @@ pub trait SignableMessage {
         // Recover and Verify
         let signer = self.signature().recover_address_from_prehash(&hash)?;
         if signer != *self.address() {
+            error!("The signer is not approved");
             return Err(anyhow::anyhow!("The signer is not approved"));
         }
 
@@ -87,5 +88,11 @@ impl SignableMessage for game_network::prelude::gossipsub::Message {
 
     fn signature_mut(&mut self) -> &mut Signature {
         unreachable!()
+    }
+}
+
+impl<T: Serialize> From<SignedMessage<T>> for Vec<u8> {
+    fn from(val: SignedMessage<T>) -> Self {
+        serde_json::to_vec(&val).unwrap()
     }
 }
