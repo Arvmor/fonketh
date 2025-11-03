@@ -1,5 +1,5 @@
-/// Miner Logic
-mod mine;
+pub mod ens;
+pub mod miner;
 
 /// Common Types
 pub mod prelude {
@@ -8,12 +8,12 @@ pub mod prelude {
     pub use tracing::{debug, error, info, trace, warn};
 }
 
-use crate::Rewarder::RewarderInstance;
+use crate::ens::EnsRegistry::EnsRegistryInstance;
+use crate::miner::{Miner, Rewarder};
 use alloy::{
     primitives::{Address, address},
     providers::{DynProvider, Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
-    sol,
 };
 
 /// Rewarder Client
@@ -22,14 +22,16 @@ use alloy::{
 #[derive(Debug)]
 pub struct RewarderClient {
     pub provider: DynProvider,
-    pub contract: RewarderInstance<DynProvider>,
-    pub miner: mine::Miner,
+    pub ens: EnsRegistryInstance<DynProvider>,
+    pub contract: Rewarder::RewarderInstance<DynProvider>,
+    pub miner: Miner,
     pub wallet: PrivateKeySigner,
 }
 
 impl RewarderClient {
     /// Rewarder Contract Address BASE
     pub const ADDRESS: Address = address!("0xd61e2af6a7c347713c478c4e9fef8fe5a22c5459");
+    pub const ENS_ADDRESS: Address = address!("0x0000000000d8e504002cc26e3ec46d81971c1664");
 
     /// Creates a new Rewarder client
     pub async fn new(url: &str, private_key: &[u8], chain_id: u64) -> anyhow::Result<Self> {
@@ -40,15 +42,19 @@ impl RewarderClient {
             .connect_http(url.parse()?)
             .erased();
 
+        // Get ENS registry
+        let ens = ens::EnsRegistry::new(Self::ENS_ADDRESS, provider.clone());
+
         // Get network difficulty
         let contract = Rewarder::new(Self::ADDRESS, provider.clone());
         let difficulty = contract.difficulty().call().await?;
         let init_hash = contract.initHash().call().await?;
 
         // Create the miner instance
-        let miner = mine::Miner::new(Self::ADDRESS, wallet.address(), 0, init_hash, difficulty);
+        let miner = Miner::new(Self::ADDRESS, wallet.address(), 0, init_hash, difficulty);
 
         Ok(Self {
+            ens,
             contract,
             provider,
             miner,
@@ -56,12 +62,6 @@ impl RewarderClient {
         })
     }
 }
-
-sol!(
-    #[sol(rpc)]
-    Rewarder,
-    "../../contracts/rewarder.json"
-);
 
 #[cfg(test)]
 mod tests {

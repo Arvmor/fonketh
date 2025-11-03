@@ -1,5 +1,11 @@
 use crate::prelude::*;
-use alloy::{primitives::keccak256, sol_types::SolValue};
+use alloy::{primitives::keccak256, sol, sol_types::SolValue};
+
+sol!(
+    #[sol(rpc)]
+    Rewarder,
+    "../../contracts/rewarder.json"
+);
 
 /// Miner
 ///

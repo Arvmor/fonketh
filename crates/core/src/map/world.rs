@@ -1,7 +1,8 @@
 use crate::channels::{SignedMessage, SignedReceiver, SignedSender};
 use crate::prelude::*;
 use crate::world::Character;
-use game_contract::{Rewarder, RewarderClient};
+use game_contract::RewarderClient;
+use game_contract::miner::Rewarder;
 use game_network::Peer2Peer;
 use game_network::prelude::Keypair;
 use game_network::prelude::gossipsub::Message;
