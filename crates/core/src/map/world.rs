@@ -102,22 +102,20 @@ where
         let keypair = Keypair::ed25519_from_bytes(private_key)?;
         let (tx, rx) = Peer2Peer::build(keypair)?.start();
 
-        // Run interface loop
-        #[cfg(feature = "interface")]
-        let rxb = {
-            let (txb, rxb) = mpsc::channel();
-            game_interface::Interface::run(txb, self.clone());
-            rxb
-        };
-
         // Run core loop
-        tokio::spawn(self.runner(
+        #[cfg(feature = "interface")]
+        let (txb, rxb) = mpsc::channel();
+        tokio::spawn(self.clone().runner(
             #[cfg(feature = "interface")]
             rxb,
             tx,
             rx,
             client,
         ));
+
+        // Run interface loop
+        #[cfg(feature = "interface")]
+        game_interface::Interface::run(txb, self);
 
         #[cfg(not(feature = "interface"))]
         tokio::signal::ctrl_c().await?;
