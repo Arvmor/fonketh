@@ -14,6 +14,8 @@ pub const GAME_PROTO_NAME: StreamProtocol = StreamProtocol::new("/game/kad/1.0.0
 const LISTEN_ADDR: &str = "/ip4/0.0.0.0/udp/7331/quic-v1";
 /// Bootstrap nodes for the peer
 const BOOTSTRAP_NODES: [&str; 1] = ["/ip4/13.220.20.144/udp/7331/quic-v1"];
+/// Topics to subscribe to
+const TOPICS: [&str; 1] = ["game_events"];
 
 #[derive(NetworkBehaviour)]
 pub struct MyBehaviour {
@@ -33,17 +35,16 @@ pub trait Network: GossipTypes {
     fn send(&mut self, topic: Self::Topic, data: Self::Data) -> Result<()>;
 }
 
-pub struct Peer2Peer<T, M> {
-    pub sender: mpsc::Sender<(T, M)>,
-    receiver: mpsc::Receiver<(T, M)>,
+pub struct Peer2Peer<M> {
+    pub sender: mpsc::Sender<M>,
+    receiver: mpsc::Receiver<M>,
     pub listener: Option<mpsc::Receiver<Message>>,
     talker: mpsc::Sender<Message>,
     swarm: Swarm<MyBehaviour>,
 }
 
-impl<T, M> Peer2Peer<T, M>
+impl<M> Peer2Peer<M>
 where
-    T: Into<IdentTopic> + Send + Sync + 'static + Debug,
     M: Into<Vec<u8>> + Send + Sync + 'static + Debug,
 {
     pub fn build(keypair: Keypair) -> Result<Self> {
@@ -95,7 +96,7 @@ where
         })
     }
 
-    async fn run(mut self, topics: Vec<T>) -> Result<()> {
+    async fn run(mut self) -> Result<()> {
         info!("Running network PeerID: {}", self.swarm.local_peer_id());
         self.listen()?;
 
@@ -105,7 +106,7 @@ where
             self.swarm.dial(opts)?;
         }
 
-        for topic in topics {
+        for topic in TOPICS {
             self.subscribe(topic)?;
         }
 
@@ -116,8 +117,8 @@ where
                 _ = interval.tick() => loop {
                     match self.receiver.try_recv() {
                         Err(TryRecvError::Empty) => break,
-                        Ok((topic, data)) => {
-                            if let Err(e) = self.send(topic, data) {
+                        Ok(data) => {
+                            if let Err(e) = self.send(TOPICS[0], data) {
                                 error!("Publish error: {e:?}");
                             }
                         },
@@ -159,22 +160,21 @@ where
         }
     }
 
-    pub fn start(mut self, topics: Vec<T>) -> (mpsc::Sender<(T, M)>, mpsc::Receiver<Message>) {
+    pub fn start(mut self) -> (mpsc::Sender<M>, mpsc::Receiver<Message>) {
         let sender = self.sender.clone();
         let listener = self.listener.take().unwrap();
-        tokio::spawn(self.run(topics));
+        tokio::spawn(self.run());
         (sender, listener)
     }
 }
 
-impl<T, M> GossipTypes for Peer2Peer<T, M> {
-    type Topic = T;
+impl<M> GossipTypes for Peer2Peer<M> {
+    type Topic = &'static str;
     type Data = M;
 }
 
-impl<T, M> Network for Peer2Peer<T, M>
+impl<M> Network for Peer2Peer<M>
 where
-    T: Into<IdentTopic> + Send + Sync + 'static,
     M: Into<Vec<u8>> + Send + Sync + 'static,
 {
     fn listen(&mut self) -> Result<()> {
@@ -184,14 +184,14 @@ where
     }
 
     fn subscribe(&mut self, topic: Self::Topic) -> Result<()> {
-        let topic = topic.into();
+        let topic = IdentTopic::new(topic);
         self.swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
 
         Ok(())
     }
 
     fn send(&mut self, topic: Self::Topic, data: Self::Data) -> Result<()> {
-        let topic = topic.into();
+        let topic = IdentTopic::new(topic);
         let data = data.into();
 
         debug!("Publishing Gossipsub topic {topic:?} with data {data:?}",);

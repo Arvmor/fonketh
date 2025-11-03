@@ -4,6 +4,7 @@ mod mine;
 /// Common Types
 pub mod prelude {
     pub use alloy::primitives::{Address, B256, U256, address, keccak256};
+    pub use alloy::signers::{Signature, Signer, local::LocalSigner};
     pub use tracing::{debug, error, info, trace, warn};
 }
 
@@ -23,6 +24,7 @@ pub struct RewarderClient {
     pub provider: DynProvider,
     pub contract: RewarderInstance<DynProvider>,
     pub miner: mine::Miner,
+    pub wallet: PrivateKeySigner,
 }
 
 impl RewarderClient {
@@ -32,9 +34,8 @@ impl RewarderClient {
     /// Creates a new Rewarder client
     pub async fn new(url: &str, private_key: &[u8], chain_id: u64) -> anyhow::Result<Self> {
         let wallet = PrivateKeySigner::from_slice(private_key)?;
-        let address = wallet.address();
         let provider = ProviderBuilder::new()
-            .wallet(wallet)
+            .wallet(wallet.clone())
             .with_chain_id(chain_id)
             .connect_http(url.parse()?)
             .erased();
@@ -45,12 +46,13 @@ impl RewarderClient {
         let init_hash = contract.initHash().call().await?;
 
         // Create the miner instance
-        let miner = mine::Miner::new(Self::ADDRESS, address, 0, init_hash, difficulty);
+        let miner = mine::Miner::new(Self::ADDRESS, wallet.address(), 0, init_hash, difficulty);
 
         Ok(Self {
             contract,
             provider,
             miner,
+            wallet,
         })
     }
 }

@@ -1,12 +1,10 @@
+use crate::channels::{SignedMessage, SignedReceiver, SignedSender};
 use crate::prelude::*;
-use crate::world::{Character, GameEvent, Position};
-use game_contract::Rewarder;
-use game_contract::prelude::{Address, U256};
-#[cfg(feature = "interface")]
-use game_interface::Interface;
+use crate::world::Character;
+use game_contract::{Rewarder, RewarderClient};
 use game_network::Peer2Peer;
-use game_network::prelude::gossipsub::{IdentTopic, Message};
-use game_network::prelude::{Keypair, PeerId};
+use game_network::prelude::Keypair;
+use game_network::prelude::gossipsub::Message;
 use game_primitives::{ExitStatus, Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -63,14 +61,14 @@ pub struct World<I, B, T = i32> {
     messages: Arc<RwLock<Vec<String>>>,
 }
 
-impl<B> World<PeerId, B, i32>
+impl<B> World<Address, B, i32>
 where
     B: Clone + Eq + Hash + Send + Sync + 'static + Default,
 {
     /// Creates a new world
     ///
     /// Initializes the world with the player
-    pub fn new(player: Character<PeerId, B, i32>) -> Self {
+    pub fn new(player: Character<Address, B, i32>) -> Self {
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
         let identifier = player.identifier();
@@ -98,27 +96,26 @@ where
         info!("Initializing world");
         let rpc = "https://mainnet.base.org";
         let chain_id = 8453;
-        let client = game_contract::RewarderClient::new(rpc, &private_key, chain_id).await?;
+        let client = RewarderClient::new(rpc, &private_key, chain_id).await?;
 
         // Run network loop
-        let topic = IdentTopic::new("game_events");
         let keypair = Keypair::ed25519_from_bytes(private_key)?;
-        let (tx, rx) = Peer2Peer::build(keypair)?.start(vec![topic.clone()]);
+        let (tx, rx) = Peer2Peer::build(keypair)?.start();
 
         // Run core loop
         #[cfg(feature = "interface")]
         let (txb, rxb) = mpsc::channel();
-        let world = self.clone();
-        tokio::spawn(async move {
+        tokio::spawn(self.clone().runner(
             #[cfg(feature = "interface")]
-            world.runner(topic, rxb, tx, rx, client).await.unwrap();
-            #[cfg(not(feature = "interface"))]
-            world.runner(topic, tx, rx, client).await.unwrap();
-        });
+            rxb,
+            tx,
+            rx,
+            client,
+        ));
 
         // Run interface loop
         #[cfg(feature = "interface")]
-        Interface::run(txb, self);
+        game_interface::Interface::run(txb, self);
 
         #[cfg(not(feature = "interface"))]
         tokio::signal::ctrl_c().await?;
@@ -129,11 +126,10 @@ where
     /// Handles the message passing from input and network
     async fn runner(
         self,
-        topic: IdentTopic,
-        #[cfg(feature = "interface")] rxb: mpsc::Receiver<GameEvent<(Address, U256), Position>>,
-        tx: tokio::sync::mpsc::Sender<(IdentTopic, Vec<u8>)>,
+        #[cfg(feature = "interface")] rxb: mpsc::Receiver<GameEventMessage>,
+        tx: tokio::sync::mpsc::Sender<SignedMessage<GameEventMessage>>,
         mut rx: tokio::sync::mpsc::Receiver<Message>,
-        mut client: game_contract::RewarderClient,
+        mut client: RewarderClient,
     ) -> anyhow::Result<()> {
         while !self.exit_status.is_exit() {
             // Listen for key events
@@ -143,20 +139,18 @@ where
                 self.update(&self.identifier, &e);
 
                 // Send event to network
-                let data = serde_json::to_vec(&e)?;
-                if let Err(e) = tx.send((topic.clone(), data)).await {
+                let message = SignedMessage::new(e, client.wallet.address());
+                if let Err(e) = tx.send_signed(message, &client.wallet).await {
                     error!("Network error: {:?}", e);
                 };
             }
 
             // Listen for network events
-            if let Ok(m) = rx.try_recv() {
-                let event = serde_json::from_slice(&m.data);
-                info!("Received Network message: {m:?} => {event:?}");
-
-                if let Ok(event) = event {
-                    self.update(&m.source.unwrap(), &event);
-                }
+            if let Ok(Some(m)) = rx.receive_signed()
+                && let Ok(signed_message) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
+            {
+                info!("Received Network message: {m:?} => {signed_message:?}");
+                self.update(&signed_message.address, &signed_message.data);
             }
 
             // Mine a new address
@@ -166,8 +160,8 @@ where
                 self.update(&self.identifier, &event);
 
                 // Send event to network
-                let data = serde_json::to_vec(&event)?;
-                if let Err(e) = tx.send((topic.clone(), data)).await {
+                let message = SignedMessage::new(event, client.wallet.address());
+                if let Err(e) = tx.send_signed(message, &client.wallet).await {
                     error!("Network error: {:?}", e);
                 };
             }
@@ -205,7 +199,7 @@ where
     /// Updates the world
     ///
     /// Based on the Events received
-    pub fn update(&self, identifier: &PeerId, event: &GameEvent<(Address, U256), Position>) {
+    pub fn update(&self, identifier: &Address, event: &GameEventMessage) {
         match event {
             GameEvent::PlayerMovement(p) => {
                 // Update player position
