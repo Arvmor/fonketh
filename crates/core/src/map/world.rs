@@ -1,7 +1,6 @@
 use crate::channels::{SignedMessage, SignedReceiver, SignedSender};
 use crate::prelude::*;
-use crate::world::{Character, GameEvent, Position};
-use game_contract::prelude::{Address, U256};
+use crate::world::Character;
 use game_contract::{Rewarder, RewarderClient};
 use game_network::Peer2Peer;
 use game_network::prelude::gossipsub::Message;
@@ -13,8 +12,6 @@ use std::hash::Hash;
 #[cfg(feature = "interface")]
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
-
-type GameEventMessage = GameEvent<(Address, U256), Position>;
 
 /// Players pool
 ///
@@ -152,10 +149,10 @@ where
 
             // Listen for network events
             if let Ok(Some(m)) = rx.receive_signed()
-                && let Ok(event) = serde_json::from_slice(&m.data)
+                && let Ok(signed_message) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
             {
-                info!("Received Network message: {m:?} => {event:?}");
-                self.update(&m.source.unwrap(), &event);
+                info!("Received Network message: {m:?} => {signed_message:?}");
+                self.update(&m.source.unwrap(), &signed_message.data);
             }
 
             // Mine a new address

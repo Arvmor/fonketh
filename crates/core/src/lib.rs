@@ -15,7 +15,11 @@ pub mod world {
 
 // Crate Prelude
 pub mod prelude {
+    pub type GameEventMessage = GameEvent<(Address, U256), Position>;
+    pub use crate::world::Position;
     pub use anyhow::{Result, anyhow};
+    pub use game_contract::prelude::{Address, U256};
+    pub use game_primitives::events::GameEvent;
     pub use serde::{Deserialize, Serialize};
     pub use serde_json::json;
     pub use tracing::{debug, error, info, trace, warn};

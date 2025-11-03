@@ -1,4 +1,4 @@
-use crate::prelude::{Deserialize, Serialize, error};
+use crate::prelude::{Deserialize, GameEventMessage, Serialize, error};
 use async_trait::async_trait;
 use game_contract::prelude::{Address, Signature, Signer, keccak256};
 
@@ -8,8 +8,8 @@ use game_contract::prelude::{Address, Signature, Signer, keccak256};
 #[async_trait]
 pub trait SignableMessage {
     fn encoded_data(&self) -> Vec<u8>;
-    fn address(&self) -> &Address;
-    fn signature(&self) -> &Signature;
+    fn address(&self) -> Address;
+    fn signature(&self) -> Signature;
     fn signature_mut(&mut self) -> &mut Signature;
 
     /// Verifies the signature of the message using the provided address
@@ -18,7 +18,7 @@ pub trait SignableMessage {
 
         // Recover and Verify
         let signer = self.signature().recover_address_from_prehash(&hash)?;
-        if signer != *self.address() {
+        if signer != self.address() {
             error!("The signer is not approved");
             return Err(anyhow::anyhow!("The signer is not approved"));
         }
@@ -60,12 +60,12 @@ impl<D: Serialize> SignableMessage for SignedMessage<D> {
         serde_json::to_vec(&packed).unwrap()
     }
 
-    fn address(&self) -> &Address {
-        &self.address
+    fn address(&self) -> Address {
+        self.address
     }
 
-    fn signature(&self) -> &Signature {
-        &self.signature
+    fn signature(&self) -> Signature {
+        self.signature
     }
 
     fn signature_mut(&mut self) -> &mut Signature {
@@ -75,15 +75,20 @@ impl<D: Serialize> SignableMessage for SignedMessage<D> {
 
 impl SignableMessage for game_network::prelude::gossipsub::Message {
     fn encoded_data(&self) -> Vec<u8> {
-        unimplemented!()
+        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data).unwrap();
+        data.encoded_data()
     }
 
-    fn address(&self) -> &Address {
-        unreachable!()
+    fn address(&self) -> Address {
+        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data).unwrap();
+
+        data.address()
     }
 
-    fn signature(&self) -> &Signature {
-        unreachable!()
+    fn signature(&self) -> Signature {
+        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data).unwrap();
+
+        data.signature()
     }
 
     fn signature_mut(&mut self) -> &mut Signature {
