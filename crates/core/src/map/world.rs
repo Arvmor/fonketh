@@ -137,7 +137,7 @@ where
             #[cfg(feature = "interface")]
             if let Ok(e) = rxb.try_recv() {
                 info!("Received Keyboard event: {e:?}");
-                self.update(&self.identifier, &e);
+                self.update(&self.identifier, &e, &client).await;
 
                 // Send event to network
                 let message = SignedMessage::new(e, client.wallet.address());
@@ -148,17 +148,17 @@ where
 
             // Listen for network events
             if let Ok(Some(m)) = rx.receive_signed()
-                && let Ok(signed_message) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
+                && let Ok(signed) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
             {
-                info!("Received Network message: {m:?} => {signed_message:?}");
-                self.update(&signed_message.address, &signed_message.data);
+                info!("Received Network message: {m:?} => {signed:?}");
+                self.update(&signed.address, &signed.data, &client).await;
             }
 
             // Mine a new address
             if let Some(mined) = client.miner.run() {
                 info!("Mined address: {mined:?}");
                 let event = GameEvent::PlayerFound(mined);
-                self.update(&self.identifier, &event);
+                self.update(&self.identifier, &event, &client).await;
 
                 // Send event to network
                 let message = SignedMessage::new(event, client.wallet.address());
@@ -200,7 +200,12 @@ where
     /// Updates the world
     ///
     /// Based on the Events received
-    pub fn update(&self, identifier: &Address, event: &GameEventMessage) {
+    pub async fn update(
+        &self,
+        identifier: &Address,
+        event: &GameEventMessage,
+        client: &RewarderClient,
+    ) {
         match event {
             GameEvent::PlayerMovement(p) => {
                 // Update player position
@@ -223,8 +228,18 @@ where
                 *self.mining_rewards.write().unwrap() += 1;
             }
             GameEvent::ChatMessage(message) => {
+                // Get ENS name
+                let identifier = match client.ens.nameForAddr(*identifier).call().await {
+                    Ok(n) if n.is_empty() => identifier.to_string(),
+                    Ok(n) => n,
+                    Err(e) => {
+                        error!("Failed to get ENS name for address {identifier:?}: {e}");
+                        identifier.to_string()
+                    }
+                };
+
                 info!("Player {identifier:?} sent chat message: {message}");
-                self.add_chat_message(format!("{identifier}: {message}"));
+                self.add_chat_message(format!("{identifier:?} - {message}"));
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
