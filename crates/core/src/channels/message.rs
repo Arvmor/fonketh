@@ -5,7 +5,7 @@ use game_contract::prelude::{Address, Signature, Signer, keccak256};
 ///
 /// Used to represent a signed message
 #[async_trait]
-pub trait SignedMessage {
+pub trait SignableMessage {
     type Signer: Signer;
 
     fn data(&self) -> &[u8];
@@ -35,3 +35,5 @@ pub trait SignedMessage {
         Ok(())
     }
 }
+
+pub struct SignedMessage {}

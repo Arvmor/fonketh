@@ -1,4 +1,4 @@
-use crate::channels::SignedMessage;
+use crate::channels::SignableMessage;
 use async_trait::async_trait;
 
 /// Signed Sender
@@ -24,7 +24,7 @@ where
 /// Used to send messages to a channel
 #[async_trait]
 pub trait Sender {
-    type Message: SignedMessage;
+    type Message: SignableMessage;
 
     async fn send(&self, message: Self::Message) -> anyhow::Result<()>;
 }
@@ -32,7 +32,7 @@ pub trait Sender {
 #[async_trait]
 impl<T> Sender for std::sync::mpsc::Sender<T>
 where
-    T: SignedMessage + Send + Sync + 'static,
+    T: SignableMessage + Send + Sync + 'static,
 {
     type Message = T;
 
@@ -45,7 +45,7 @@ where
 #[async_trait]
 impl<T> Sender for tokio::sync::mpsc::Sender<T>
 where
-    T: SignedMessage + Send + Sync + 'static,
+    T: SignableMessage + Send + Sync + 'static,
 {
     type Message = T;
 

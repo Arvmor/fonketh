@@ -1,4 +1,4 @@
-use crate::channels::message::SignedMessage;
+use crate::channels::message::SignableMessage;
 
 /// Signed Receiver
 ///
@@ -22,14 +22,14 @@ pub trait SignedReceiver: Receiver {
 ///
 /// Used to receive messages from a channel
 pub trait Receiver {
-    type Message: SignedMessage;
+    type Message: SignableMessage;
 
     fn try_receive(&mut self) -> anyhow::Result<Option<Self::Message>>;
 }
 
 impl<T> Receiver for std::sync::mpsc::Receiver<T>
 where
-    T: SignedMessage,
+    T: SignableMessage,
 {
     type Message = T;
 
@@ -44,7 +44,7 @@ where
 
 impl<T> Receiver for tokio::sync::mpsc::Receiver<T>
 where
-    T: SignedMessage,
+    T: SignableMessage,
 {
     type Message = T;
 
