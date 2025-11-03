@@ -5,6 +5,7 @@ mod mine;
 pub mod prelude {
     pub use alloy::primitives::{Address, B256, U256, address, keccak256};
     pub use alloy::signers::{Signature, Signer, local::LocalSigner};
+    pub use alloy::sol_types::SolValue;
     pub use tracing::{debug, error, info, trace, warn};
 }
 

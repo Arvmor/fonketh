@@ -65,7 +65,7 @@ mod tests {
 
         // Receive message
         let data = rx.receive_signed()?;
-        assert_eq!(data.unwrap().data(), DATA);
+        assert_eq!(data.unwrap().data, DATA);
         Ok(())
     }
 }
