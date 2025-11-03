@@ -33,6 +33,7 @@ pub trait SignableMessage {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct SignedMessage<D> {
     data: D,
     address: Address,
