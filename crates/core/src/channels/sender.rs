@@ -1,5 +1,6 @@
 use crate::channels::SignableMessage;
 use async_trait::async_trait;
+use game_contract::prelude::Signer;
 
 /// Signed Sender
 ///
@@ -8,15 +9,26 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait SignedSender: Sender
 where
-    Self::Message: Send,
+    Self::Message: SignableMessage + Send,
 {
     /// Send a signed message to the channel
-    async fn send_signed(&self, mut message: Self::Message) -> anyhow::Result<()> {
-        message.sign().await?;
+    async fn send_signed<S: Signer + Send + Sync>(
+        &self,
+        mut message: Self::Message,
+        signer: &S,
+    ) -> anyhow::Result<()> {
+        message.sign(signer).await?;
         self.send(message).await?;
 
         Ok(())
     }
+}
+
+impl<T> SignedSender for T
+where
+    T: Sender,
+    T::Message: SignableMessage + Send,
+{
 }
 
 /// Sender
@@ -24,7 +36,7 @@ where
 /// Used to send messages to a channel
 #[async_trait]
 pub trait Sender {
-    type Message: SignableMessage;
+    type Message;
 
     async fn send(&self, message: Self::Message) -> anyhow::Result<()>;
 }
@@ -32,7 +44,7 @@ pub trait Sender {
 #[async_trait]
 impl<T> Sender for std::sync::mpsc::Sender<T>
 where
-    T: SignableMessage + Send + Sync + 'static,
+    T: Send + Sync + 'static,
 {
     type Message = T;
 
@@ -45,7 +57,7 @@ where
 #[async_trait]
 impl<T> Sender for tokio::sync::mpsc::Sender<T>
 where
-    T: SignableMessage + Send + Sync + 'static,
+    T: Send + Sync + 'static,
 {
     type Message = T;
 

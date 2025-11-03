@@ -4,7 +4,10 @@ use crate::channels::message::SignableMessage;
 ///
 /// Used to receive signed messages from a channel
 /// Verifies the signature of the message
-pub trait SignedReceiver: Receiver {
+pub trait SignedReceiver: Receiver
+where
+    Self::Message: SignableMessage,
+{
     /// Receive a signed message from the channel and verify the signature
     fn receive_signed(&mut self) -> anyhow::Result<Option<Self::Message>> {
         let message = self.try_receive()?;
@@ -18,19 +21,23 @@ pub trait SignedReceiver: Receiver {
     }
 }
 
+impl<T> SignedReceiver for T
+where
+    T: Receiver,
+    T::Message: SignableMessage,
+{
+}
+
 /// Receiver
 ///
 /// Used to receive messages from a channel
 pub trait Receiver {
-    type Message: SignableMessage;
+    type Message;
 
     fn try_receive(&mut self) -> anyhow::Result<Option<Self::Message>>;
 }
 
-impl<T> Receiver for std::sync::mpsc::Receiver<T>
-where
-    T: SignableMessage,
-{
+impl<T> Receiver for std::sync::mpsc::Receiver<T> {
     type Message = T;
 
     fn try_receive(&mut self) -> anyhow::Result<Option<Self::Message>> {
@@ -42,10 +49,7 @@ where
     }
 }
 
-impl<T> Receiver for tokio::sync::mpsc::Receiver<T>
-where
-    T: SignableMessage,
-{
+impl<T> Receiver for tokio::sync::mpsc::Receiver<T> {
     type Message = T;
 
     fn try_receive(&mut self) -> anyhow::Result<Option<Self::Message>> {

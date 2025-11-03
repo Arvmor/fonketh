@@ -6,11 +6,8 @@ use game_contract::prelude::{Address, Signature, Signer, keccak256};
 /// Used to represent a signed message
 #[async_trait]
 pub trait SignableMessage {
-    type Signer: Signer;
-
     fn data(&self) -> &[u8];
     fn address(&self) -> &Address;
-    fn signer(&self) -> &Self::Signer;
     fn signature(&self) -> &Signature;
     fn signature_mut(&mut self) -> &mut Signature;
 
@@ -28,12 +25,46 @@ pub trait SignableMessage {
     }
 
     /// Signs the message using the provided signer
-    async fn sign(&mut self) -> anyhow::Result<()> {
+    async fn sign<S: Signer + Send + Sync>(&mut self, signer: &S) -> anyhow::Result<()> {
         let hash = keccak256(self.data());
-        *self.signature_mut() = self.signer().sign_hash(&hash).await?;
+        *self.signature_mut() = signer.sign_hash(&hash).await?;
 
         Ok(())
     }
 }
 
-pub struct SignedMessage {}
+pub struct SignedMessage<D> {
+    data: D,
+    address: Address,
+    signature: Signature,
+}
+
+impl<D> SignedMessage<D> {
+    pub fn new(data: D, address: Address) -> Self {
+        let signature = Signature::new(Default::default(), Default::default(), Default::default());
+
+        Self {
+            data,
+            address,
+            signature,
+        }
+    }
+}
+
+impl<D> SignableMessage for SignedMessage<D> {
+    fn data(&self) -> &[u8] {
+        &[]
+    }
+
+    fn address(&self) -> &Address {
+        &self.address
+    }
+
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    fn signature_mut(&mut self) -> &mut Signature {
+        &mut self.signature
+    }
+}
