@@ -46,6 +46,7 @@ impl Interface {
             .insert_resource(PlayerStates::<P>::default())
             .insert_resource(MiningRewards::default())
             .insert_resource(ChatInputText::default())
+            .insert_resource(ClaimKeyPressed::default())
             // prevents blurry sprites
             .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin))
             // Startup systems
@@ -66,6 +67,8 @@ impl Interface {
             .add_systems(Update, handle_chat_input::<F, Po>)
             .add_systems(Update, display_chat_messages::<W>)
             .add_systems(Update, animate_coin)
+            .add_systems(Update, handle_claim_input)
+            .add_systems(Update, claim_coins)
             .run();
 
         Self { app }
