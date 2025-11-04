@@ -61,6 +61,7 @@ pub struct World<I, B, T = i32> {
     mining_rewards: Arc<RwLock<u32>>,
     mined: Arc<RwLock<HashSet<(Address, U256)>>>,
     messages: Arc<RwLock<Vec<ChatMessage>>>,
+    ens_cache: Arc<RwLock<HashMap<Address, String>>>,
 }
 
 impl<B> World<Address, B, i32>
@@ -77,6 +78,7 @@ where
         let mining_rewards = Arc::new(Default::default());
         let mined = Arc::new(Default::default());
         let messages = Arc::new(Default::default());
+        let ens_cache = Arc::new(Default::default());
 
         // Add player to players pool
         players.add_player(player.identifier(), player);
@@ -88,6 +90,7 @@ where
             mining_rewards,
             mined,
             messages,
+            ens_cache,
         }
     }
 
@@ -229,14 +232,25 @@ where
                 *self.mining_rewards.write().unwrap() += 1;
             }
             GameEvent::ChatMessage(message) => {
-                // Get ENS name
-                let identifier = match client.ens.nameForAddr(*identifier).call().await {
-                    Ok(n) if n.is_empty() => identifier.to_string(),
-                    Ok(n) => n,
-                    Err(e) => {
-                        error!("Failed to get ENS name for address {identifier:?}: {e}");
-                        identifier.to_string()
-                    }
+                // Check Cache
+                let cached_name = self.ens_cache.read().unwrap().get(identifier).cloned();
+                let identifier = match cached_name {
+                    Some(n) => n,
+                    // Get ENS name
+                    None => match client.ens.nameForAddr(*identifier).call().await {
+                        Ok(n) if n.is_empty() => identifier.to_string(),
+                        Ok(n) => {
+                            self.ens_cache
+                                .write()
+                                .unwrap()
+                                .insert(*identifier, n.clone());
+                            n
+                        }
+                        Err(e) => {
+                            error!("Failed to get ENS name for address {identifier:?}: {e}");
+                            identifier.to_string()
+                        }
+                    },
                 };
 
                 info!("Player {identifier:?} sent chat message: {message}");
