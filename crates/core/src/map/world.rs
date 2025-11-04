@@ -6,6 +6,7 @@ use game_contract::miner::Rewarder;
 use game_network::Peer2Peer;
 use game_network::prelude::Keypair;
 use game_network::prelude::gossipsub::Message;
+use game_primitives::message::ChatMessage;
 use game_primitives::{ExitStatus, Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -59,7 +60,7 @@ pub struct World<I, B, T = i32> {
     players: Arc<PlayersPool<I, B, T>>,
     mining_rewards: Arc<RwLock<u32>>,
     mined: Arc<RwLock<HashSet<(Address, U256)>>>,
-    messages: Arc<RwLock<Vec<String>>>,
+    messages: Arc<RwLock<Vec<ChatMessage>>>,
 }
 
 impl<B> World<Address, B, i32>
@@ -239,7 +240,7 @@ where
                 };
 
                 info!("Player {identifier:?} sent chat message: {message}");
-                self.add_chat_message(format!("{identifier:?} - {message}"));
+                self.add_chat_message(identifier, message.clone());
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
@@ -272,9 +273,9 @@ where
     }
 
     /// Adds a chat message to the messages pool
-    pub fn add_chat_message(&self, message: String) {
+    pub fn add_chat_message(&self, identifier: String, message: String) {
         let mut messages = self.messages.write().unwrap();
-        messages.push(message);
+        messages.push(ChatMessage::new(identifier, message));
     }
 }
 
@@ -293,6 +294,7 @@ where
     T: Copy + Clone + Into<f64>,
 {
     type Player = Character<I, B, T>;
+    type Message = ChatMessage;
 
     fn exit_status(&self) -> Arc<ExitStatus> {
         self.exit_status.clone()
@@ -306,7 +308,7 @@ where
         *self.mining_rewards.read().unwrap()
     }
 
-    fn get_chat_messages(&self) -> Vec<String> {
+    fn get_chat_messages(&self) -> Vec<Self::Message> {
         self.messages.read().unwrap().clone()
     }
 }
