@@ -2,6 +2,8 @@ use crate::prelude::*;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 
+const CLAIM_DISTANCE: f32 = 100.0;
+
 pub fn animate_coin(
     time: Res<Time>,
     mut coin_query: Query<(&mut AnimationConfig, &mut Sprite), With<Coin>>,
@@ -24,8 +26,6 @@ pub fn animate_coin(
         }
     }
 }
-
-const CLAIM_DISTANCE: f32 = 100.0;
 
 pub fn handle_claim_input(
     mut evr_keys: MessageReader<KeyboardInput>,
@@ -64,5 +64,52 @@ pub fn claim_coins(
             info!("Claiming coin at distance: {}", distance);
             commands.entity(coin_entity).despawn();
         }
+    }
+}
+
+pub fn show_coin_claim_hint(
+    mut commands: Commands,
+    main_player_query: Query<&Transform, (With<MainPlayer>, Without<Coin>, Without<CoinClaimHint>)>,
+    coin_query: Query<&Transform, (With<Coin>, Without<MainPlayer>, Without<CoinClaimHint>)>,
+    mut hint_query: Query<
+        (Entity, &mut Transform),
+        (With<CoinClaimHint>, Without<MainPlayer>, Without<Coin>),
+    >,
+) {
+    let Some(player_transform) = main_player_query.iter().next() else {
+        return;
+    };
+
+    let player_pos = player_transform.translation;
+
+    let nearest_coin = coin_query
+        .iter()
+        .filter_map(|coin_transform| {
+            let coin_pos = coin_transform.translation;
+            let distance = player_pos.distance(coin_pos);
+            (distance <= CLAIM_DISTANCE).then_some((coin_pos, distance))
+        })
+        .min_by(|(_, dist_a), (_, dist_b)| dist_a.partial_cmp(dist_b).unwrap());
+
+    match (nearest_coin, hint_query.iter_mut().next()) {
+        (Some((coin_pos, _)), Some((_, mut hint_transform))) => {
+            hint_transform.translation = Vec3::new(coin_pos.x, coin_pos.y + 80.0, 10.0);
+        }
+        (Some((coin_pos, _)), None) => {
+            commands.spawn((
+                Text2d::new("Press [E] to Claim."),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(Color::BLACK),
+                Transform::from_translation(Vec3::new(coin_pos.x, coin_pos.y + 80.0, 10.0)),
+                CoinClaimHint,
+            ));
+        }
+        (None, Some((entity, _))) => {
+            commands.entity(entity).despawn();
+        }
+        (None, None) => {}
     }
 }

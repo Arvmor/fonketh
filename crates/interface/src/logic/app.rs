@@ -69,6 +69,7 @@ impl Interface {
             .add_systems(Update, animate_coin)
             .add_systems(Update, handle_claim_input)
             .add_systems(Update, claim_coins)
+            .add_systems(Update, show_coin_claim_hint)
             .run();
 
         Self { app }

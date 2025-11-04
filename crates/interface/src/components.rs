@@ -57,6 +57,10 @@ pub struct PlayerCount;
 #[derive(Component)]
 pub struct InstructionsText;
 
+/// Component to identify coin claim hint text
+#[derive(Component)]
+pub struct CoinClaimHint;
+
 /// Component to identify the animation configuration
 #[derive(Component)]
 pub struct AnimationConfig {
