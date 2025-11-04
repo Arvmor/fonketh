@@ -57,6 +57,7 @@ impl Interface {
             .add_systems(Update, track_network_movements::<W, P, I>)
             .add_systems(Update, execute_animations::<W, P, I>)
             .add_systems(Update, spawn_new_players::<W, P, I>)
+            .add_systems(Update, despawn_quit_players::<W, P, I>)
             .add_systems(Update, handle_idle_transitions::<W, P, I>)
             .add_systems(Update, follow_main_player_with_camera)
             .add_systems(Update, track_mining_events::<W>)
@@ -147,6 +148,29 @@ fn spawn_new_players<W, P, I>(
         // Add MainPlayer component if this is the local player
         if is_main_player {
             entity_commands.insert(MainPlayer);
+        }
+    }
+}
+
+fn despawn_quit_players<W, P, I>(
+    mut commands: Commands,
+    world_state: Res<WorldStateResource<W>>,
+    mut spawned_players: ResMut<SpawnedPlayers<P>>,
+    mut player_states: ResMut<PlayerStates<P>>,
+    player_query: Query<(Entity, &PlayerEntity<P>)>,
+) where
+    W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+    P: Identifier<Id = I> + Player + Sync + Send + 'static,
+    I: Sync + Send + Clone + Hash + Eq + Display + 'static,
+{
+    let all_players = world_state.0.get_all_players();
+
+    for (entity, player_entity) in player_query.iter() {
+        if !all_players.contains_key(&player_entity.peer_id) {
+            info!("Despawning player entity: {}", player_entity.peer_id);
+            commands.entity(entity).despawn();
+            spawned_players.spawned.remove(&player_entity.peer_id);
+            player_states.players.remove(&player_entity.peer_id);
         }
     }
 }

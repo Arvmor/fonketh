@@ -1,10 +1,12 @@
 use crate::channels::{SignedMessage, SignedReceiver, SignedSender};
 use crate::prelude::*;
 use crate::world::Character;
-use game_contract::{Rewarder, RewarderClient};
+use game_contract::RewarderClient;
+use game_contract::miner::Rewarder;
 use game_network::Peer2Peer;
 use game_network::prelude::Keypair;
 use game_network::prelude::gossipsub::Message;
+use game_primitives::message::ChatMessage;
 use game_primitives::{ExitStatus, Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -58,7 +60,8 @@ pub struct World<I, B, T = i32> {
     players: Arc<PlayersPool<I, B, T>>,
     mining_rewards: Arc<RwLock<u32>>,
     mined: Arc<RwLock<HashSet<(Address, U256)>>>,
-    messages: Arc<RwLock<Vec<String>>>,
+    messages: Arc<RwLock<Vec<ChatMessage>>>,
+    ens_cache: Arc<RwLock<HashMap<Address, String>>>,
 }
 
 impl<B> World<Address, B, i32>
@@ -75,6 +78,7 @@ where
         let mining_rewards = Arc::new(Default::default());
         let mined = Arc::new(Default::default());
         let messages = Arc::new(Default::default());
+        let ens_cache = Arc::new(Default::default());
 
         // Add player to players pool
         players.add_player(player.identifier(), player);
@@ -86,6 +90,7 @@ where
             mining_rewards,
             mined,
             messages,
+            ens_cache,
         }
     }
 
@@ -136,7 +141,7 @@ where
             #[cfg(feature = "interface")]
             if let Ok(e) = rxb.try_recv() {
                 info!("Received Keyboard event: {e:?}");
-                self.update(&self.identifier, &e);
+                self.update(&self.identifier, &e, &client).await;
 
                 // Send event to network
                 let message = SignedMessage::new(e, client.wallet.address());
@@ -147,17 +152,17 @@ where
 
             // Listen for network events
             if let Ok(Some(m)) = rx.receive_signed()
-                && let Ok(signed_message) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
+                && let Ok(signed) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
             {
-                info!("Received Network message: {m:?} => {signed_message:?}");
-                self.update(&signed_message.address, &signed_message.data);
+                info!("Received Network message: {m:?} => {signed:?}");
+                self.update(&signed.address, &signed.data, &client).await;
             }
 
             // Mine a new address
             if let Some(mined) = client.miner.run() {
                 info!("Mined address: {mined:?}");
                 let event = GameEvent::PlayerFound(mined);
-                self.update(&self.identifier, &event);
+                self.update(&self.identifier, &event, &client).await;
 
                 // Send event to network
                 let message = SignedMessage::new(event, client.wallet.address());
@@ -199,7 +204,12 @@ where
     /// Updates the world
     ///
     /// Based on the Events received
-    pub fn update(&self, identifier: &Address, event: &GameEventMessage) {
+    pub async fn update(
+        &self,
+        identifier: &Address,
+        event: &GameEventMessage,
+        client: &RewarderClient,
+    ) {
         match event {
             GameEvent::PlayerMovement(p) => {
                 // Update player position
@@ -222,8 +232,29 @@ where
                 *self.mining_rewards.write().unwrap() += 1;
             }
             GameEvent::ChatMessage(message) => {
+                // Check Cache
+                let cached_name = self.ens_cache.read().unwrap().get(identifier).cloned();
+                let identifier = match cached_name {
+                    Some(n) => n,
+                    // Get ENS name
+                    None => match client.ens.nameForAddr(*identifier).call().await {
+                        Ok(n) if n.is_empty() => identifier.to_string(),
+                        Ok(n) => {
+                            self.ens_cache
+                                .write()
+                                .unwrap()
+                                .insert(*identifier, n.clone());
+                            n
+                        }
+                        Err(e) => {
+                            error!("Failed to get ENS name for address {identifier:?}: {e}");
+                            identifier.to_string()
+                        }
+                    },
+                };
+
                 info!("Player {identifier:?} sent chat message: {message}");
-                self.add_chat_message(format!("{identifier}: {message}"));
+                self.add_chat_message(identifier, message.clone());
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
@@ -256,9 +287,9 @@ where
     }
 
     /// Adds a chat message to the messages pool
-    pub fn add_chat_message(&self, message: String) {
+    pub fn add_chat_message(&self, identifier: String, message: String) {
         let mut messages = self.messages.write().unwrap();
-        messages.push(message);
+        messages.push(ChatMessage::new(identifier, message));
     }
 }
 
@@ -277,6 +308,7 @@ where
     T: Copy + Clone + Into<f64>,
 {
     type Player = Character<I, B, T>;
+    type Message = ChatMessage;
 
     fn exit_status(&self) -> Arc<ExitStatus> {
         self.exit_status.clone()
@@ -290,7 +322,7 @@ where
         *self.mining_rewards.read().unwrap()
     }
 
-    fn get_chat_messages(&self) -> Vec<String> {
+    fn get_chat_messages(&self) -> Vec<Self::Message> {
         self.messages.read().unwrap().clone()
     }
 }

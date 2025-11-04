@@ -1,6 +1,8 @@
 pub mod events;
+pub mod message;
 
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -36,6 +38,7 @@ impl ExitStatus {
 /// Used to store the state of the world
 pub trait WorldState: Identifier {
     type Player: Player;
+    type Message: Display;
     /// Gets the exit status of the world
     fn exit_status(&self) -> Arc<ExitStatus>;
     /// Gets all players from the world
@@ -43,7 +46,7 @@ pub trait WorldState: Identifier {
     /// Gets the current mining rewards count
     fn get_mining_rewards_count(&self) -> u32;
     /// Gets the current chat messages
-    fn get_chat_messages(&self) -> Vec<String>;
+    fn get_chat_messages(&self) -> Vec<Self::Message>;
 }
 
 /// Player

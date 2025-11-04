@@ -7,14 +7,14 @@ use game_contract::prelude::{Address, Signature, Signer, keccak256};
 /// Used to represent a signed message
 #[async_trait]
 pub trait SignableMessage {
-    fn encoded_data(&self) -> Vec<u8>;
+    fn encoded_data(&self) -> anyhow::Result<Vec<u8>>;
     fn address(&self) -> Address;
     fn signature(&self) -> Signature;
     fn signature_mut(&mut self) -> &mut Signature;
 
     /// Verifies the signature of the message using the provided address
     fn verify(&self) -> anyhow::Result<()> {
-        let hash = keccak256(self.encoded_data());
+        let hash = keccak256(self.encoded_data()?);
 
         // Recover and Verify
         let signer = self.signature().recover_address_from_prehash(&hash)?;
@@ -28,7 +28,7 @@ pub trait SignableMessage {
 
     /// Signs the message using the provided signer
     async fn sign<S: Signer + Send + Sync>(&mut self, signer: &S) -> anyhow::Result<()> {
-        let hash = keccak256(self.encoded_data());
+        let hash = keccak256(self.encoded_data()?);
         *self.signature_mut() = signer.sign_hash(&hash).await?;
 
         Ok(())
@@ -55,9 +55,9 @@ impl<D: Serialize> SignedMessage<D> {
 }
 
 impl<D: Serialize> SignableMessage for SignedMessage<D> {
-    fn encoded_data(&self) -> Vec<u8> {
+    fn encoded_data(&self) -> anyhow::Result<Vec<u8>> {
         let packed = (&self.data, &self.address);
-        serde_json::to_vec(&packed).unwrap()
+        Ok(serde_json::to_vec(&packed)?)
     }
 
     fn address(&self) -> Address {
@@ -74,8 +74,8 @@ impl<D: Serialize> SignableMessage for SignedMessage<D> {
 }
 
 impl SignableMessage for game_network::prelude::gossipsub::Message {
-    fn encoded_data(&self) -> Vec<u8> {
-        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data).unwrap();
+    fn encoded_data(&self) -> anyhow::Result<Vec<u8>> {
+        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data)?;
         data.encoded_data()
     }
 

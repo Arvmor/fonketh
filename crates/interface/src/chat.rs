@@ -133,7 +133,7 @@ pub fn display_chat_messages<W>(
 
         // Show last 5 messages
         for m in world_state.0.get_chat_messages().into_iter().rev().take(5) {
-            recent.push(m);
+            recent.push(m.to_string());
         }
 
         chat_box_text.0 = recent.join("\n");
