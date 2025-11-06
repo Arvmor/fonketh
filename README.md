@@ -4,6 +4,13 @@ Poc Contract Live on **Base Chain**.
 
 Contract Address at [0xd61e2af6a7c347713c478c4e9fef8fe5a22c5459](https://basescan.org/address/0xd61e2af6a7c347713c478c4e9fef8fe5a22c5459)
 
+### How to Play
+```bash
+$ git clone https://github.com/Arvmor/fonketh.git
+$ cd fonketh
+$ cargo run -F interface --release
+```
+
 ## Overview
 
 Fonketh is essentially a **Peer-2-peer mining pool** / **`Gameified PoW Node`**
