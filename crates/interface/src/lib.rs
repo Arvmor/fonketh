@@ -1,4 +1,5 @@
 mod chat;
+mod coins;
 mod components;
 mod hud;
 mod logic;
@@ -20,6 +21,7 @@ mod prelude {
     pub const CAMERA_BOUNDARY_Y: f32 = 150.0;
 
     pub use crate::chat::*;
+    pub use crate::coins::*;
     pub use crate::components::*;
     pub use crate::hud::*;
     pub use crate::resources::*;
