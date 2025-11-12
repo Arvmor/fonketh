@@ -7,7 +7,8 @@ members = [
     "crates/primitives",
     "crates/interface",
     "crates/network",
-    "crates/sprite", "crates/api",
+    "crates/sprite",
+    "crates/api",
 ]
 
 [workspace.dependencies]
@@ -26,3 +27,4 @@ game_network = { path = "crates/network" }
 game_primitives = { path = "crates/primitives" }
 game_interface = { path = "crates/interface" }
 game_sprite = { path = "crates/sprite" }
+game_api = { path = "crates/api" }

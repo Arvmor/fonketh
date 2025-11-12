@@ -4432,6 +4432,8 @@ name = "game_api"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "anyhow",
+ "game_primitives",
 ]
 
 [[package]]
@@ -4459,6 +4461,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "game_api",
  "game_contract",
  "game_interface",
  "game_network",

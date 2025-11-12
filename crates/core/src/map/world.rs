@@ -118,6 +118,10 @@ where
             client,
         ));
 
+        // Run api loop
+        #[cfg(feature = "api")]
+        tokio::spawn(game_api::ApiServer::new(self.clone()).run());
+
         // Run interface loop
         #[cfg(feature = "interface")]
         game_interface::Interface::run(txb, self);

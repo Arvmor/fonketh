@@ -6,6 +6,8 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use serde::Serialize;
+
 /// Identifier Trait
 ///
 /// Used to identify a unique entity in the system
@@ -39,7 +41,7 @@ impl ExitStatus {
 pub trait WorldState: Identifier {
     type Player: Player;
     type Message: Display;
-    type MiningBatch;
+    type MiningBatch: Serialize;
 
     /// Gets the exit status of the world
     fn exit_status(&self) -> Arc<ExitStatus>;
