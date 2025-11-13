@@ -1,30 +1,14 @@
-use actix_web::Responder;
 use actix_web::web;
-use actix_web::{App, HttpServer, get};
+use actix_web::{App, HttpServer};
 use game_primitives::WorldState;
 use serde::Serialize;
 
+mod health_status;
 mod utils;
 mod world_status;
 
-use utils::ResponseAPI;
+use health_status::HealthStatus;
 use world_status::WorldStatus;
-
-/// Index route
-///
-/// Responds with a simple message
-#[get("/")]
-async fn index() -> impl Responder {
-    ResponseAPI::success(utils::API_SERVER_VERSION)
-}
-
-/// Health Check route
-///
-/// Responds with a simple message
-#[get("/health")]
-async fn health_check() -> impl Responder {
-    ResponseAPI::success("OK")
-}
 
 /// Api Server
 ///
@@ -51,8 +35,8 @@ where
             App::new()
                 .app_data(self.world.clone())
                 // Health Check Endpoints
-                .service(index)
-                .service(health_check)
+                .service(web::resource("/").to(HealthStatus::index))
+                .service(web::resource("/health").to(HealthStatus::health_check))
                 // World Status Endpoints
                 .service(web::resource("/mine").to(WorldStatus::mined_batch::<W>))
                 .service(web::resource("/players").to(WorldStatus::players::<W, P>))
