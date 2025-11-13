@@ -6,12 +6,15 @@ edition = "2024"
 [features]
 default = []
 interface = ["game_interface"]
+api = ["game_api"]
 
 [dependencies]
 game_network.workspace = true
 game_contract.workspace = true
 game_primitives.workspace = true
 game_interface = { workspace = true, optional = true }
+game_api = { workspace = true, optional = true }
+
 tokio.workspace = true
 anyhow.workspace = true
 serde.workspace = true

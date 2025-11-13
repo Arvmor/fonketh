@@ -1,10 +1,12 @@
 pub mod events;
 pub mod message;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+use serde::Serialize;
 
 /// Identifier Trait
 ///
@@ -39,12 +41,16 @@ impl ExitStatus {
 pub trait WorldState: Identifier {
     type Player: Player;
     type Message: Display;
+    type MiningBatch: Serialize;
+
     /// Gets the exit status of the world
     fn exit_status(&self) -> Arc<ExitStatus>;
     /// Gets all players from the world
     fn get_all_players(&self) -> HashMap<Self::Id, Self::Player>;
     /// Gets the current mining rewards count
     fn get_mining_rewards_count(&self) -> u32;
+    /// Gets Current Mining Batch
+    fn get_mining_batch(&self) -> HashSet<Self::MiningBatch>;
     /// Gets the current chat messages
     fn get_chat_messages(&self) -> Vec<Self::Message>;
 }

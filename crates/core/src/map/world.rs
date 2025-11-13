@@ -118,6 +118,10 @@ where
             client,
         ));
 
+        // Run api loop
+        #[cfg(feature = "api")]
+        tokio::spawn(game_api::ApiServer::new(self.clone()).run());
+
         // Run interface loop
         #[cfg(feature = "interface")]
         game_interface::Interface::run(txb, self);
@@ -309,6 +313,7 @@ where
 {
     type Player = Character<I, B, T>;
     type Message = ChatMessage;
+    type MiningBatch = (Address, U256);
 
     fn exit_status(&self) -> Arc<ExitStatus> {
         self.exit_status.clone()
@@ -320,6 +325,10 @@ where
 
     fn get_mining_rewards_count(&self) -> u32 {
         *self.mining_rewards.read().unwrap()
+    }
+
+    fn get_mining_batch(&self) -> HashSet<Self::MiningBatch> {
+        self.mined.read().unwrap().clone()
     }
 
     fn get_chat_messages(&self) -> Vec<Self::Message> {
