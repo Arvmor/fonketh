@@ -1,12 +1,11 @@
 pub mod events;
 pub mod message;
 
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-
-use serde::Serialize;
 
 /// Identifier Trait
 ///
@@ -20,7 +19,7 @@ pub trait Identifier {
 /// Exit status
 ///
 /// Used to signal that the world should exit
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ExitStatus(AtomicBool);
 
 impl ExitStatus {

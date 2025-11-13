@@ -18,7 +18,7 @@ use std::sync::{Arc, RwLock};
 /// Players pool
 ///
 /// Used to store all players in the world
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct PlayersPool<I, B, T = i32> {
     players: RwLock<HashMap<I, Character<I, B, T>>>,
 }
@@ -53,7 +53,7 @@ impl<I: Eq + Hash, B, T> PlayersPool<I, B, T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct World<I, B, T = i32> {
     pub exit_status: Arc<ExitStatus>,
     identifier: I,
@@ -66,7 +66,7 @@ pub struct World<I, B, T = i32> {
 
 impl<B> World<Address, B, i32>
 where
-    B: Clone + Eq + Hash + Send + Sync + 'static + Default,
+    B: Clone + Eq + Hash + Send + Sync + Serialize + Default + 'static,
 {
     /// Creates a new world
     ///

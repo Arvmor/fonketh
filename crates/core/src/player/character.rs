@@ -1,7 +1,8 @@
 use crate::movements::Position;
 use game_primitives::{Identifier, Player};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Character<N, B, T> {
     pub name: N,
     pub balance: B,

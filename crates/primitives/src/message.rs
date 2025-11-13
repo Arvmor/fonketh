@@ -1,3 +1,4 @@
+use serde::ser::SerializeStruct;
 use std::fmt::{Display, Formatter, Result};
 use std::time::Instant;
 
@@ -6,6 +7,19 @@ pub struct ChatMessage {
     pub identifier: String,
     pub message: String,
     pub timestamp: Instant,
+}
+
+impl serde::Serialize for ChatMessage {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut s = serializer.serialize_struct("ChatMessage", 3)?;
+        s.serialize_field("identifier", &self.identifier)?;
+        s.serialize_field("message", &self.message)?;
+        s.serialize_field("timestamp", &self.timestamp.elapsed().as_secs())?;
+        s.end()
+    }
 }
 
 impl ChatMessage {
