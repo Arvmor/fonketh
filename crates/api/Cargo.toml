@@ -7,3 +7,4 @@ edition = "2024"
 actix-web = { version = "4.11.0", features = ["rustls"] }
 game_primitives.workspace = true
 anyhow.workspace = true
+serde.workspace = true

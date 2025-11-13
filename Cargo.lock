@@ -4434,6 +4434,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "game_primitives",
+ "serde",
 ]
 
 [[package]]
