@@ -33,6 +33,7 @@ where
     pub async fn run(self) {
         let app = move || {
             App::new()
+                .wrap(actix_cors::Cors::permissive())
                 .app_data(self.world.clone())
                 // Health Check Endpoints
                 .service(web::resource("/").to(HealthStatus::index))

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 actix-web = { version = "4.11.0", features = ["rustls"] }
+actix-cors = "0.7.1"
 game_primitives.workspace = true
 anyhow.workspace = true
 serde.workspace = true
