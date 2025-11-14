@@ -156,13 +156,14 @@ where
 
             // Listen for network events
             if let Ok(Some(m)) = rx.receive_signed()
-                && let Ok(signed) = serde_json::from_slice::<SignedMessage<_>>(&m.data)
+                && let Ok(signed) = SignedMessage::<GameEventMessage>::try_from(&m)
             {
                 info!("Received Network message: {m:?} => {signed:?}");
                 self.update(&signed.address, &signed.data, &client).await;
             }
 
             // Mine a new address
+            #[cfg(feature = "mine")]
             if let Some(mined) = client.miner.run() {
                 info!("Mined address: {mined:?}");
                 let event = GameEvent::PlayerFound(mined);
@@ -177,6 +178,7 @@ where
 
             // If mined enough
             // Spawn Claim Transaction
+            #[cfg(feature = "mine")]
             if self.get_mined_count() >= 10
                 && let Ok(batch) = self.drain_mined_batch().try_into()
             {
