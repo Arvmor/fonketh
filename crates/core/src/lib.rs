@@ -21,6 +21,34 @@ pub mod prelude {
     pub use game_contract::prelude::{Address, U256};
     pub use game_primitives::events::GameEvent;
     pub use serde::{Deserialize, Serialize};
-    pub use serde_json::json;
     pub use tracing::{debug, error, info, trace, warn};
+}
+
+/// Bincode Helper
+///
+/// Used to encode and decode values using bincode
+pub struct BincodeHelper;
+
+impl BincodeHelper {
+    /// Encode a value using bincode
+    pub fn encode<T: serde::Serialize>(value: &T) -> anyhow::Result<Vec<u8>> {
+        match bincode::serde::encode_to_vec(value, bincode::config::standard()) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                tracing::error!("Bincode Encode Failed: {e:?}");
+                Err(anyhow::anyhow!("Bincode Encode Failed: {e:?}"))
+            }
+        }
+    }
+
+    /// Decode a value using bincode
+    pub fn decode<T: for<'de> serde::Deserialize<'de>>(value: &[u8]) -> anyhow::Result<T> {
+        match bincode::serde::decode_from_slice(value, bincode::config::standard()) {
+            Ok((result, _)) => Ok(result),
+            Err(e) => {
+                tracing::error!("Bincode Decode Failed: {e:?}");
+                Err(anyhow::anyhow!("Bincode Decode Failed: {e:?}"))
+            }
+        }
+    }
 }

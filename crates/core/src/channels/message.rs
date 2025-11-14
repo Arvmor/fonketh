@@ -1,6 +1,8 @@
+use crate::BincodeHelper;
 use crate::prelude::{Deserialize, GameEventMessage, Serialize, error};
 use async_trait::async_trait;
 use game_contract::prelude::{Address, Signature, Signer, keccak256};
+use game_network::prelude::gossipsub::Message as GossipMessage;
 
 /// Signed Message
 ///
@@ -57,7 +59,7 @@ impl<D: Serialize> SignedMessage<D> {
 impl<D: Serialize> SignableMessage for SignedMessage<D> {
     fn encoded_data(&self) -> anyhow::Result<Vec<u8>> {
         let packed = (&self.data, &self.address);
-        Ok(serde_json::to_vec(&packed)?)
+        BincodeHelper::encode(&packed)
     }
 
     fn address(&self) -> Address {
@@ -73,22 +75,21 @@ impl<D: Serialize> SignableMessage for SignedMessage<D> {
     }
 }
 
-impl SignableMessage for game_network::prelude::gossipsub::Message {
+impl SignableMessage for GossipMessage {
+    fn verify(&self) -> anyhow::Result<()> {
+        SignedMessage::<GameEventMessage>::try_from(self)?.verify()
+    }
+
     fn encoded_data(&self) -> anyhow::Result<Vec<u8>> {
-        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data)?;
-        data.encoded_data()
+        unreachable!()
     }
 
     fn address(&self) -> Address {
-        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data).unwrap();
-
-        data.address()
+        unreachable!()
     }
 
     fn signature(&self) -> Signature {
-        let data = serde_json::from_slice::<SignedMessage<GameEventMessage>>(&self.data).unwrap();
-
-        data.signature()
+        unreachable!()
     }
 
     fn signature_mut(&mut self) -> &mut Signature {
@@ -96,8 +97,17 @@ impl SignableMessage for game_network::prelude::gossipsub::Message {
     }
 }
 
+impl<D: for<'de> Deserialize<'de> + Serialize> TryFrom<&GossipMessage> for SignedMessage<D> {
+    type Error = anyhow::Error;
+
+    fn try_from(val: &GossipMessage) -> Result<Self, Self::Error> {
+        let data = BincodeHelper::decode::<SignedMessage<D>>(&val.data)?;
+        Ok(data)
+    }
+}
+
 impl<T: Serialize> From<SignedMessage<T>> for Vec<u8> {
     fn from(val: SignedMessage<T>) -> Self {
-        serde_json::to_vec(&val).unwrap()
+        BincodeHelper::encode(&val).unwrap()
     }
 }
