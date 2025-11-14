@@ -5,6 +5,7 @@ edition = "2024"
 
 [features]
 default = []
+mine = []
 interface = ["game_interface"]
 api = ["game_api"]
 

@@ -163,6 +163,7 @@ where
             }
 
             // Mine a new address
+            #[cfg(feature = "mine")]
             if let Some(mined) = client.miner.run() {
                 info!("Mined address: {mined:?}");
                 let event = GameEvent::PlayerFound(mined);
@@ -177,6 +178,7 @@ where
 
             // If mined enough
             // Spawn Claim Transaction
+            #[cfg(feature = "mine")]
             if self.get_mined_count() >= 10
                 && let Ok(batch) = self.drain_mined_batch().try_into()
             {
