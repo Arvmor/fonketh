@@ -58,8 +58,7 @@ pub struct World<I, B, T = i32> {
     pub exit_status: Arc<ExitStatus>,
     identifier: I,
     players: Arc<PlayersPool<I, B, T>>,
-    mining_rewards: Arc<RwLock<u32>>,
-    mined: Arc<RwLock<HashSet<(Address, U256)>>>,
+    mined: Arc<RwLock<HashSet<MinedBlock>>>,
     messages: Arc<RwLock<Vec<ChatMessage>>>,
     ens_cache: Arc<RwLock<HashMap<Address, String>>>,
 }
@@ -75,7 +74,6 @@ where
         let exit_status = Arc::new(ExitStatus::default());
         let players = Arc::new(PlayersPool::new());
         let identifier = player.identifier();
-        let mining_rewards = Arc::new(Default::default());
         let mined = Arc::new(Default::default());
         let messages = Arc::new(Default::default());
         let ens_cache = Arc::new(Default::default());
@@ -87,7 +85,6 @@ where
             exit_status,
             identifier,
             players,
-            mining_rewards,
             mined,
             messages,
             ens_cache,
@@ -234,8 +231,8 @@ where
             GameEvent::PlayerFound(f) => {
                 info!("Player {identifier:?} found: {f:?}");
                 // Increment mining rewards counter
-                self.mined.write().unwrap().insert(*f);
-                *self.mining_rewards.write().unwrap() += 1;
+                let mined_block = MinedBlock::new(f.0, f.1).unwrap();
+                self.mined.write().unwrap().insert(mined_block);
             }
             GameEvent::ChatMessage(message) => {
                 // Check Cache
@@ -280,9 +277,9 @@ where
             .write()
             .unwrap()
             .drain()
-            .map(|(a, n)| Rewarder::MinerData {
-                minerAddress: a,
-                nonce: n,
+            .map(|mined_block| Rewarder::MinerData {
+                minerAddress: mined_block.address,
+                nonce: mined_block.nonce,
             })
             .collect()
     }
@@ -315,7 +312,7 @@ where
 {
     type Player = Character<I, B, T>;
     type Message = ChatMessage;
-    type MiningBatch = (Address, U256);
+    type MiningBatch = MinedBlock;
 
     fn exit_status(&self) -> Arc<ExitStatus> {
         self.exit_status.clone()
@@ -326,7 +323,7 @@ where
     }
 
     fn get_mining_rewards_count(&self) -> u32 {
-        *self.mining_rewards.read().unwrap()
+        self.mined.read().unwrap().len() as u32
     }
 
     fn get_mining_batch(&self) -> HashSet<Self::MiningBatch> {
@@ -335,5 +332,31 @@ where
 
     fn get_chat_messages(&self) -> Vec<Self::Message> {
         self.messages.read().unwrap().clone()
+    }
+}
+
+/// Mined Block
+///
+/// Responsible for storing the mined block information
+#[derive(Debug, Serialize, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct MinedBlock {
+    pub address: Address,
+    pub nonce: U256,
+    pub timestamp: u64,
+}
+
+impl MinedBlock {
+    /// Creates a new mined block
+    pub fn new(address: Address, nonce: U256) -> anyhow::Result<Self> {
+        // Timestamp in seconds
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+
+        Ok(Self {
+            address,
+            nonce,
+            timestamp,
+        })
     }
 }
