@@ -46,6 +46,7 @@ impl Interface {
             .insert_resource(PlayerStates::<P>::default())
             .insert_resource(MiningRewards::default())
             .insert_resource(ChatInputText::default())
+            .insert_resource(ClaimKeyPressed::default())
             // prevents blurry sprites
             .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin))
             // Startup systems
@@ -65,22 +66,46 @@ impl Interface {
             .add_systems(Update, update_player_count::<W>)
             .add_systems(Update, handle_chat_input::<F, Po>)
             .add_systems(Update, display_chat_messages::<W>)
+            .add_systems(Update, animate_coin)
+            .add_systems(Update, handle_claim_input)
+            .add_systems(Update, claim_coins)
+            .add_systems(Update, show_coin_claim_hint)
             .run();
 
         Self { app }
     }
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Spawn 2D camera
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+) {
     commands.spawn(Camera2d);
 
-    // Spawn the grass background
     let image = asset_server.load("./assets/textures/background/full.png");
     commands.spawn((
         Sprite { image, ..default() },
         Transform::from_translation(Vec3::new(0., 0., -1.)).with_scale(Vec3::splat(1.5)),
         Ground,
+    ));
+
+    let image = asset_server.load("./assets/textures/objects/coins.png");
+    let coin_layout = TextureAtlasLayout::from_grid(UVec2::splat(134), 6, 1, None, None);
+    let coin_animation = AnimationConfig::new(0, 5, FPS);
+    let texture_atlas = Some(TextureAtlas {
+        layout: texture_atlas_layouts.add(coin_layout),
+        index: coin_animation.first_sprite_index,
+    });
+
+    commands.spawn((
+        Sprite {
+            image,
+            texture_atlas,
+            ..default()
+        },
+        coin_animation,
+        Coin,
     ));
 }
 

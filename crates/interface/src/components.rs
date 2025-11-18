@@ -17,6 +17,10 @@ pub struct PlayerEntity<I: Identifier> {
 #[derive(Component)]
 pub struct Ground;
 
+/// Component to identify the coin entity
+#[derive(Component)]
+pub struct Coin;
+
 /// Component to identify the main/local player
 #[derive(Component)]
 pub struct MainPlayer;
@@ -52,6 +56,10 @@ pub struct PlayerCount;
 /// Component to identify instructions display
 #[derive(Component)]
 pub struct InstructionsText;
+
+/// Component to identify coin claim hint text
+#[derive(Component)]
+pub struct CoinClaimHint;
 
 /// Component to identify the animation configuration
 #[derive(Component)]
