@@ -13,4 +13,4 @@ tracing-subscriber.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-game_core = { workspace = true, features = ["interface", "api"] }
+game_core = { workspace = true, features = ["interface", "api", "mine"] }

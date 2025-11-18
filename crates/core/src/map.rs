@@ -161,7 +161,7 @@ where
 
             // Mine a new address
             #[cfg(feature = "mine")]
-            if let Some(mined) = client.miner.run() {
+            if let Ok(mined) = client.miner.run() {
                 info!("Mined address: {mined:?}");
                 let event = GameEvent::PlayerFound(mined);
                 self.update(&self.identifier, &event, &client).await;
@@ -229,9 +229,16 @@ where
                 }
             }
             GameEvent::PlayerFound(f) => {
-                info!("Player {identifier:?} found: {f:?}");
-                // Increment mining rewards counter
+                // Verify the mined address
+                if let Err(e) = client.miner.verify(f.0, f.1) {
+                    error!("Failed to verify mined {f:?}: {e}");
+                    return;
+                }
+
                 let mined_block = MinedBlock::new(f.0, f.1).unwrap();
+                info!("Player {identifier:?} mined: {mined_block:?}");
+
+                // Add to mined blocks
                 self.mined.write().unwrap().insert(mined_block);
             }
             GameEvent::ChatMessage(message) => {
