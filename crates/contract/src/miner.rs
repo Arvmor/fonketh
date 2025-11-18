@@ -40,27 +40,33 @@ impl Miner {
     }
 
     /// Mines a new address
-    pub fn mine(&mut self, nonce: U256, init_hash: B256) -> Option<U256> {
+    fn mine(&self, address: Address, nonce: U256, init_hash: B256) -> anyhow::Result<()> {
         // keccak256(abi.encodePacked(nonce, minerAddress));
-        let salt = keccak256((nonce, self.address).abi_encode_packed());
+        let salt = keccak256((nonce, address).abi_encode_packed());
         let mined = self.factory.create2(salt, init_hash);
 
-        // If passed the difficulty, return the nonce
-        if mined < self.difficulty {
-            info!("Mined address: {mined} with salt: {salt}");
-            return Some(nonce);
+        // Check against the network difficulty
+        if mined > self.difficulty {
+            return Err(anyhow::anyhow!("Not passed the network difficulty"));
         }
 
-        None
+        Ok(())
     }
 
     /// Run Miner
-    pub fn run(&mut self) -> Option<(Address, U256)> {
+    pub fn run(&mut self) -> anyhow::Result<(Address, U256)> {
         // Increment the nonce
         self.salt += U256::ONE;
 
         // If mined, return the miner address and nonce
-        self.mine(self.salt, self.init_hash)
-            .map(|n| (self.address, n))
+        self.mine(self.address, self.salt, self.init_hash)?;
+        info!("Mined address: {} with salt: {}", self.address, self.salt);
+
+        Ok((self.address, self.salt))
+    }
+
+    /// Verify mined address
+    pub fn verify(&self, address: Address, nonce: U256) -> anyhow::Result<()> {
+        self.mine(address, nonce, self.init_hash)
     }
 }
