@@ -1,8 +1,16 @@
-# Fonketh - P2P Mining Pool
+# Fonketh: Peer-to-Peer Protocol-Agnostic Mining Pool Layer
 
 Poc Contract Live on **Base Chain**.
 
+![Fonketh Demo](./docs/v0.1.0demo.gif)
+
 Contract Address at [0xd61e2af6a7c347713c478c4e9fef8fe5a22c5459](https://basescan.org/address/0xd61e2af6a7c347713c478c4e9fef8fe5a22c5459)
+
+## Abstract
+
+Traditional *Proof-of-Work* (PoW) protocols were originally designed around solo mining, where rewards go to whichever individual achieves the winning result first. As a consequence, miners with more efficient hardware capture a disproportionate share of rewards, causing smaller participants to **expend energy** without meaningful returns. This dynamic pushes the ecosystem toward ***centralization*** and mining ***monopolies*** over the time.
+
+While mining pools mitigate some of this imbalance, they remain tightly coupled to specific blockchains or protocols. **FonkETH** introduces a protocol-agnostic *peer-to-peer* (P2P) networking layer that allows miners of any scale to *aggregate* their compute, coordinate work, and share *context-dependent* opportunities (e.g., miners with different capabilities or insights can contribute uniquely to the process). This approach enables **proportional reward distribution** among participants based on their actual contribution.
 
 ### How to Play
 ```bash
@@ -18,8 +26,6 @@ Fonketh is essentially a **Peer-2-peer mining pool** / **`Gameified PoW Node`**
 Allows nodes to join a decentralized mining pool and **compound their mining powers**.
 
 The nodes are rewarded with `$FONK` tokens based on their mining power & contributions.
-
-![Fonketh Demo](./docs/v0.1.0demo.gif)
 
 ## Implementation
 
