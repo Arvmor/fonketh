@@ -50,3 +50,9 @@ pub struct ChatInputText {
     pub text: String,
     pub is_active: bool,
 }
+
+/// Resource that tracks E key press for claiming coins
+#[derive(Resource, Default)]
+pub struct ClaimKeyPressed {
+    pub pressed: bool,
+}
