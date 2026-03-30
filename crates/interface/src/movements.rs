@@ -11,7 +11,7 @@ pub struct PlayerStateInfo {
     pub state: CharacterState,
     pub last_movement_time: Instant,
     pub previous_position: (i64, i64),
-    pub facing_right: bool,
+    pub facing: FacingDirection,
 }
 
 impl Default for PlayerStateInfo {
@@ -20,7 +20,7 @@ impl Default for PlayerStateInfo {
             state: CharacterState::Idle,
             last_movement_time: Instant::now(),
             previous_position: (0, 0),
-            facing_right: true, // Default to facing right
+            facing: FacingDirection::default(),
         }
     }
 }
@@ -30,6 +30,15 @@ pub enum CharacterState {
     #[default]
     Idle,
     Running,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum FacingDirection {
+    #[default]
+    Right,
+    Left,
+    Up,
+    Down,
 }
 
 /// Captures keyboard events and sends them to the core channel
@@ -73,16 +82,19 @@ pub fn track_network_movements<W, P, I>(
         // Check if this player has moved
         let player_info = player_states.players.entry(peer_id).or_default();
         if player_info.previous_position != current_pos {
-            // Player has moved, update state
             player_info.state = CharacterState::Running;
             player_info.last_movement_time = now;
 
-            // Update facing direction based on horizontal movement
-            if current_pos.0 > player_info.previous_position.0 {
-                player_info.facing_right = true; // Moving right
-            } else if current_pos.0 < player_info.previous_position.0 {
-                player_info.facing_right = false; // Moving left
-            }
+            let dx = current_pos.0 - player_info.previous_position.0;
+            let dy = current_pos.1 - player_info.previous_position.1;
+
+            player_info.facing = match (dx, dy) {
+                (x, _) if x > 0 => FacingDirection::Right,
+                (x, _) if x < 0 => FacingDirection::Left,
+                (_, y) if y > 0 => FacingDirection::Up,
+                (_, y) if y < 0 => FacingDirection::Down,
+                _ => player_info.facing,
+            };
         }
 
         // Always update the previous position
@@ -120,21 +132,19 @@ pub fn execute_animations<W, P, I>(
         transform.translation.x = character.position().x() as f32 * MAGIC_SPEED;
         transform.translation.y = character.position().y() as f32 * MAGIC_SPEED;
 
-        // Get the player's state from the interface state tracking
-        let (state, facing_right) = player_states
+        let (state, facing) = player_states
             .players
             .get(&player_entity.peer_id)
-            .map_or((CharacterState::Idle, true), |i| {
-                (i.state.clone(), i.facing_right)
+            .map_or((CharacterState::Idle, FacingDirection::Right), |i| {
+                (i.state.clone(), i.facing)
             });
 
-        // Apply sprite flipping based on facing direction
-        transform.scale.y = 6.0; // Keep Y scale normal
-        if facing_right {
-            transform.scale.x = 6.0; // Normal scale
+        transform.scale.y = 6.0;
+        transform.scale.x = if facing == FacingDirection::Left {
+            -6.0
         } else {
-            transform.scale.x = -6.0; // Flipped scale (negative)
-        }
+            6.0
+        };
 
         // Handle animation based on character state
         let Some(atlas) = &mut sprite.texture_atlas else {

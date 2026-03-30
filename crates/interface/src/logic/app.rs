@@ -1,3 +1,7 @@
+use crate::combat::{
+    check_projectile_collisions, despawn_expired_projectiles, handle_shooting_input,
+    move_projectiles, spawn_projectiles, tick_hit_flash,
+};
 use crate::minings::{track_mining_events, update_status_bar};
 use crate::movements::{
     capture_key_events, execute_animations, follow_main_player_with_camera,
@@ -46,6 +50,8 @@ impl Interface {
             .insert_resource(PlayerStates::<P>::default())
             .insert_resource(MiningRewards::default())
             .insert_resource(ChatInputText::default())
+            .insert_resource(SpawnedProjectileIds::default())
+            .insert_resource(ShootingCooldown::default())
             // prevents blurry sprites
             .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin))
             // Startup systems
@@ -65,6 +71,12 @@ impl Interface {
             .add_systems(Update, update_player_count::<W>)
             .add_systems(Update, handle_chat_input::<F, Po>)
             .add_systems(Update, display_chat_messages::<W>)
+            .add_systems(Update, handle_shooting_input::<W, P, I, F, Po>)
+            .add_systems(Update, spawn_projectiles::<W, P, I>)
+            .add_systems(Update, move_projectiles)
+            .add_systems(Update, check_projectile_collisions::<W, P, I>)
+            .add_systems(Update, despawn_expired_projectiles)
+            .add_systems(Update, tick_hit_flash)
             .run();
 
         Self { app }

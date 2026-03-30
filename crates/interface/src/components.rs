@@ -53,6 +53,20 @@ pub struct PlayerCount;
 #[derive(Component)]
 pub struct InstructionsText;
 
+/// Component to identify a projectile entity, linking it to a world-state projectile ID
+#[derive(Component)]
+pub struct ProjectileEntity {
+    pub id: u64,
+}
+
+/// Component holding a projectile's pixel-space velocity per second
+#[derive(Component)]
+pub struct ProjectileVelocity(pub Vec2);
+
+/// Component holding a projectile's remaining lifetime timer
+#[derive(Component)]
+pub struct ProjectileLifetime(pub Timer);
+
 /// Component to identify the animation configuration
 #[derive(Component)]
 pub struct AnimationConfig {

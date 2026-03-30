@@ -6,4 +6,5 @@ pub enum GameEvent<F, P> {
     PlayerMovement(P),
     PlayerFound(F),
     ChatMessage(String),
+    PlayerShot(P),
 }

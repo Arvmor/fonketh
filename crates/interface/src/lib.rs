@@ -1,4 +1,5 @@
 mod chat;
+mod combat;
 mod components;
 mod hud;
 mod logic;
@@ -22,6 +23,7 @@ mod prelude {
     pub use crate::chat::*;
     pub use crate::components::*;
     pub use crate::hud::*;
+    pub use crate::movements::FacingDirection;
     pub use crate::resources::*;
     pub use game_primitives::*;
 }
