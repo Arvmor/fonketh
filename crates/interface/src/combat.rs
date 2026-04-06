@@ -126,25 +126,22 @@ pub fn check_projectile_collisions<W, P, I>(
     P: Identifier<Id = I> + Player + Sync + Send + 'static,
     I: Sync + Send + Clone + Hash + Eq + 'static,
 {
-    let local_id = world_state.0.identifier();
-
-    let local_projectile_ids: std::collections::HashSet<u64> = world_state
+    let projectile_owners: std::collections::HashMap<u64, I> = world_state
         .0
         .get_projectiles()
         .into_iter()
-        .filter(|p| p.owner == local_id)
-        .map(|p| p.id)
+        .map(|p| (p.id, p.owner))
         .collect();
 
     for (proj_entity, proj_component, proj_transform) in projectile_query.iter() {
-        if !local_projectile_ids.contains(&proj_component.id) {
+        let Some(owner) = projectile_owners.get(&proj_component.id) else {
             continue;
-        }
+        };
 
         let proj_pos = proj_transform.translation.truncate();
 
         for (player_entity, player_component, player_transform) in player_query.iter() {
-            if player_component.peer_id == local_id {
+            if &player_component.peer_id == owner {
                 continue;
             }
 

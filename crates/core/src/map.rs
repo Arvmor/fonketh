@@ -12,9 +12,9 @@ use game_primitives::{ExitStatus, Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "interface")]
 use std::sync::mpsc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -174,10 +174,9 @@ where
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
-            self.projectiles
-                .write()
-                .unwrap()
-                .retain(|(_, spawned_at)| now_secs.saturating_sub(*spawned_at) < PROJECTILE_MAX_AGE_SECS);
+            self.projectiles.write().unwrap().retain(|(_, spawned_at)| {
+                now_secs.saturating_sub(*spawned_at) < PROJECTILE_MAX_AGE_SECS
+            });
 
             // Mine a new address
             #[cfg(feature = "mine")]
