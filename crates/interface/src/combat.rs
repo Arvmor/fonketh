@@ -118,7 +118,7 @@ pub fn move_projectiles(
 pub fn check_projectile_collisions<W, P, I>(
     mut commands: Commands,
     world_state: Res<WorldStateResource<W>>,
-    projectile_query: Query<(Entity, &ProjectileEntity, &Transform)>,
+    projectile_query: Query<(Entity, &ProjectileEntity, &Transform), Without<ProjectileHit>>,
     player_query: Query<(Entity, &PlayerEntity<P>, &Transform)>,
     mut spawned_ids: ResMut<SpawnedProjectileIds>,
 ) where
@@ -147,7 +147,7 @@ pub fn check_projectile_collisions<W, P, I>(
 
             let player_pos = player_transform.translation.truncate();
             if proj_pos.distance(player_pos) <= HIT_DISTANCE {
-                commands.entity(proj_entity).despawn();
+                commands.entity(proj_entity).insert(ProjectileHit).despawn();
                 spawned_ids.ids.remove(&proj_component.id);
                 commands.entity(player_entity).insert(HitFlash::new());
                 break;

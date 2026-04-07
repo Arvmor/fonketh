@@ -164,6 +164,7 @@ where
             // Listen for network events
             if let Ok(Some(m)) = rx.receive_signed()
                 && let Ok(signed) = SignedMessage::<GameEventMessage>::try_from(&m)
+                && signed.address != self.identifier
             {
                 info!("Received Network message: {m:?} => {signed:?}");
                 self.update(&signed.address, &signed.data, &client).await;

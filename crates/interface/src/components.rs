@@ -59,6 +59,11 @@ pub struct ProjectileEntity {
     pub id: u64,
 }
 
+/// Marker component added to a projectile the frame it hits a player,
+/// preventing the deferred despawn from triggering a second collision check
+#[derive(Component)]
+pub struct ProjectileHit;
+
 /// Component holding a projectile's pixel-space velocity per second
 #[derive(Component)]
 pub struct ProjectileVelocity(pub Vec2);
