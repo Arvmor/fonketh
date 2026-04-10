@@ -13,8 +13,12 @@ use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
 use std::fmt::Display;
 use std::hash::Hash;
-use std::path::Path;
+#[cfg(feature = "custom_sprites")]
+use std::path::PathBuf;
 use std::sync::mpsc::Sender;
+
+#[cfg(feature = "custom_sprites")]
+const PLAYER_TEXTURE_BYTES: &[u8] = crate::CHARACTER_BYTES;
 
 /// Interface for the game
 ///
@@ -35,16 +39,22 @@ impl Interface {
         P: Identifier<Id = I> + Player + Sync + Send + 'static,
         I: Hash + Eq + Clone + Sync + Send + Display + 'static,
     {
-        // Config plugins
-        let image_plugin = ImagePlugin::default_nearest();
-        let asset_plugin = AssetPlugin {
-            file_path: "./../..".to_string(),
-            ..Default::default()
-        };
+        #[cfg(feature = "custom_sprites")]
+        let player_texture_path = Self::extract_player_texture()
+            .inspect_err(|error| error!("Failed to extract player texture: {error}"))
+            .ok();
 
-        let app = App::new()
-            // Channel to pass Events to core
-            .insert_resource(KeyEventSender(channel))
+        let image_plugin = ImagePlugin::default_nearest();
+        let mut app = App::new();
+
+        app.add_plugins(DefaultPlugins.set(image_plugin));
+
+        crate::register_embedded_assets(&mut app);
+
+        #[cfg(feature = "custom_sprites")]
+        app.insert_resource(TempPlayerTexturePath(player_texture_path));
+
+        app.insert_resource(KeyEventSender(channel))
             .insert_resource(WorldStateResource(world))
             .insert_resource(SpawnedPlayers::<P>::default())
             .insert_resource(PlayerStates::<P>::default())
@@ -52,8 +62,6 @@ impl Interface {
             .insert_resource(ChatInputText::default())
             .insert_resource(SpawnedProjectileIds::default())
             .insert_resource(ShootingCooldown::default())
-            // prevents blurry sprites
-            .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin))
             // Startup systems
             .add_systems(Startup, setup)
             .add_systems(Startup, setup_hud)
@@ -76,19 +84,39 @@ impl Interface {
             .add_systems(Update, move_projectiles)
             .add_systems(Update, check_projectile_collisions::<W, P, I>)
             .add_systems(Update, despawn_expired_projectiles)
-            .add_systems(Update, tick_hit_flash)
-            .run();
+            .add_systems(Update, tick_hit_flash);
+
+        let app = app.run();
 
         Self { app }
     }
+
+    #[cfg(feature = "custom_sprites")]
+    fn extract_player_texture() -> std::io::Result<PathBuf> {
+        use std::fs;
+
+        let temp_dir = std::env::temp_dir().join("fonketh_assets").join("textures");
+        fs::create_dir_all(&temp_dir)?;
+
+        let texture_path = temp_dir.join("gabe-idle-run.png");
+        (!texture_path.exists())
+            .then_some(())
+            .map(|_| fs::write(&texture_path, PLAYER_TEXTURE_BYTES))
+            .transpose()?;
+
+        Ok(texture_path)
+    }
 }
+
+#[cfg(feature = "custom_sprites")]
+#[derive(Resource)]
+struct TempPlayerTexturePath(Option<PathBuf>);
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Spawn 2D camera
     commands.spawn(Camera2d);
 
-    // Spawn the grass background
-    let image = asset_server.load("./assets/textures/background/full.png");
+    let image = asset_server.load(crate::BACKGROUND_ASSET_PATH);
     commands.spawn((
         Sprite { image, ..default() },
         Transform::from_translation(Vec3::new(0., 0., -1.)).with_scale(Vec3::splat(1.5)),
@@ -103,13 +131,13 @@ fn spawn_new_players<W, P, I>(
     mut spawned_players: ResMut<SpawnedPlayers<P>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    #[cfg(feature = "custom_sprites")]
+    player_texture_path: Res<TempPlayerTexturePath>,
 ) where
     W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
     P: Identifier<Id = I> + Player + Sync + Send + 'static,
     I: Sync + Send + Clone + Hash + Eq + Display + 'static,
 {
-    // Plain Character Sprite Path
-    let path = Path::new("./assets/textures/characters/gabe-idle-run.png");
     let local_player_id = world_state.0.identifier();
 
     for (peer_id, character) in world_state.0.get_all_players() {
@@ -118,16 +146,44 @@ fn spawn_new_players<W, P, I>(
             continue;
         }
 
-        // Modify the sprite image based on the player's color
         #[cfg(feature = "custom_sprites")]
-        let path = game_sprite::SpriteImage::from_identifier(path, peer_id.to_string())
-            .unwrap_or_else(|e| {
-                error!("Failed to modify sprite image: {e}");
-                path.to_path_buf()
-            });
+        let image = {
+            use bevy::asset::io::embedded::EmbeddedAssetRegistry;
 
-        // Load the sprite sheet using the `AssetServer`
-        let image = asset_server.load(path);
+            let embedded_key = format!("game_interface/player-{peer_id}.png");
+            let embedded_uri = format!("embedded://{embedded_key}");
+
+            player_texture_path
+                .0
+                .as_ref()
+                .and_then(|base_sprite| {
+                    game_sprite::SpriteImage::from_identifier(base_sprite, peer_id.to_string())
+                        .inspect_err(|e| error!("Failed to modify sprite image: {e}"))
+                        .ok()
+                })
+                .and_then(|path| {
+                    std::fs::read(&path)
+                        .inspect_err(|e| error!("Failed to read modified sprite: {e}"))
+                        .ok()
+                })
+                .map(|bytes| {
+                    commands
+                        .queue(move |world: &mut World| {
+                            world
+                                .resource::<EmbeddedAssetRegistry>()
+                                .insert_asset(
+                                    std::path::PathBuf::new(),
+                                    std::path::Path::new(&embedded_key),
+                                    bytes,
+                                );
+                        });
+                    asset_server.load(embedded_uri)
+                })
+                .unwrap_or_else(|| asset_server.load(crate::CHARACTER_ASSET_PATH))
+        };
+
+        #[cfg(not(feature = "custom_sprites"))]
+        let image = asset_server.load(crate::CHARACTER_ASSET_PATH);
         let texture_atlas_layout =
             TextureAtlasLayout::from_grid(UVec2::splat(24), 7, 1, None, None);
         let layout = texture_atlas_layouts.add(texture_atlas_layout);
