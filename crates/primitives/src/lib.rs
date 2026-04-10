@@ -1,5 +1,6 @@
 pub mod events;
 pub mod message;
+pub mod projectile;
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -52,6 +53,8 @@ pub trait WorldState: Identifier {
     fn get_mining_batch(&self) -> HashSet<Self::MiningBatch>;
     /// Gets the current chat messages
     fn get_chat_messages(&self) -> Vec<Self::Message>;
+    /// Gets all active projectiles
+    fn get_projectiles(&self) -> Vec<projectile::Projectile<Self::Id>>;
 }
 
 /// Player

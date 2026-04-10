@@ -7,13 +7,18 @@ use game_network::Peer2Peer;
 use game_network::prelude::Keypair;
 use game_network::prelude::gossipsub::Message;
 use game_primitives::message::ChatMessage;
+use game_primitives::projectile::Projectile;
 use game_primitives::{ExitStatus, Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "interface")]
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const PROJECTILE_MAX_AGE_SECS: u64 = 3;
 
 /// Players pool
 ///
@@ -61,6 +66,8 @@ pub struct World<I, B, T = i32> {
     mined: Arc<RwLock<HashSet<MinedBlock>>>,
     messages: Arc<RwLock<Vec<ChatMessage>>>,
     ens_cache: Arc<RwLock<HashMap<Address, String>>>,
+    projectiles: Arc<RwLock<Vec<(Projectile<I>, u64)>>>,
+    projectile_counter: Arc<AtomicU64>,
 }
 
 impl<B> World<Address, B, i32>
@@ -77,8 +84,9 @@ where
         let mined = Arc::new(Default::default());
         let messages = Arc::new(Default::default());
         let ens_cache = Arc::new(Default::default());
+        let projectiles = Arc::new(Default::default());
+        let projectile_counter = Arc::new(AtomicU64::new(0));
 
-        // Add player to players pool
         players.add_player(player.identifier(), player);
 
         Self {
@@ -88,6 +96,8 @@ where
             mined,
             messages,
             ens_cache,
+            projectiles,
+            projectile_counter,
         }
     }
 
@@ -154,10 +164,20 @@ where
             // Listen for network events
             if let Ok(Some(m)) = rx.receive_signed()
                 && let Ok(signed) = SignedMessage::<GameEventMessage>::try_from(&m)
+                && signed.address != self.identifier
             {
                 info!("Received Network message: {m:?} => {signed:?}");
                 self.update(&signed.address, &signed.data, &client).await;
             }
+
+            // Evict expired projectiles
+            let now_secs = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            self.projectiles.write().unwrap().retain(|(_, spawned_at)| {
+                now_secs.saturating_sub(*spawned_at) < PROJECTILE_MAX_AGE_SECS
+            });
 
             // Mine a new address
             #[cfg(feature = "mine")]
@@ -266,11 +286,41 @@ where
                 info!("Player {identifier:?} sent chat message: {message}");
                 self.add_chat_message(identifier, message.clone());
             }
+            GameEvent::PlayerShot(direction) => {
+                info!("Player {identifier:?} shot in direction: {direction:?}");
+
+                let position = self
+                    .players
+                    .update_player(identifier, |player| player.position)
+                    .unwrap_or_else(|| {
+                        let new_player = Character::new(*identifier, Default::default(), (0, 0));
+                        self.players.add_player(*identifier, new_player);
+                        Default::default()
+                    });
+
+                let id = self.projectile_counter.fetch_add(1, Ordering::Relaxed);
+                let spawned_at = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let projectile = Projectile {
+                    id,
+                    owner: *identifier,
+                    origin_x: position.x.into(),
+                    origin_y: position.y.into(),
+                    direction_x: direction.x.into(),
+                    direction_y: direction.y.into(),
+                };
+
+                self.projectiles
+                    .write()
+                    .unwrap()
+                    .push((projectile, spawned_at));
+            }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
                 self.players.remove_player(identifier);
 
-                // Quit if the local player quit
                 if identifier == &self.identifier {
                     self.exit_status.exit();
                 }
@@ -339,6 +389,15 @@ where
 
     fn get_chat_messages(&self) -> Vec<Self::Message> {
         self.messages.read().unwrap().clone()
+    }
+
+    fn get_projectiles(&self) -> Vec<game_primitives::projectile::Projectile<Self::Id>> {
+        self.projectiles
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(p, _)| p.clone())
+            .collect()
     }
 }
 

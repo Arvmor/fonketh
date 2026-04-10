@@ -8,9 +8,9 @@ name = "app"
 path = "src/main.rs"
 
 [dependencies]
-game_core = { workspace = true, features = ["api"] }
+game_core = { workspace = true, features = ["interface"] }
 tracing-subscriber.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-game_core = { workspace = true, features = ["interface", "api", "mine"] }
+game_core = { workspace = true, features = ["interface"] }

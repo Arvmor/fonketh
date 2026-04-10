@@ -4,6 +4,7 @@ use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, WorldState};
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Sender;
+use std::time::Instant;
 
 /// Resource that holds the keyboard event sender
 #[derive(Resource)]
@@ -49,4 +50,16 @@ pub struct MiningRewards {
 pub struct ChatInputText {
     pub text: String,
     pub is_active: bool,
+}
+
+/// Resource tracking which projectile IDs have already been spawned as Bevy entities
+#[derive(Resource, Default)]
+pub struct SpawnedProjectileIds {
+    pub ids: HashSet<u64>,
+}
+
+/// Resource for rate-limiting local shooting
+#[derive(Resource, Default)]
+pub struct ShootingCooldown {
+    pub last_shot: Option<Instant>,
 }

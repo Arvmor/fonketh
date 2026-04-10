@@ -53,6 +53,25 @@ pub struct PlayerCount;
 #[derive(Component)]
 pub struct InstructionsText;
 
+/// Component to identify a projectile entity, linking it to a world-state projectile ID
+#[derive(Component)]
+pub struct ProjectileEntity {
+    pub id: u64,
+}
+
+/// Marker component added to a projectile the frame it hits a player,
+/// preventing the deferred despawn from triggering a second collision check
+#[derive(Component)]
+pub struct ProjectileHit;
+
+/// Component holding a projectile's pixel-space velocity per second
+#[derive(Component)]
+pub struct ProjectileVelocity(pub Vec2);
+
+/// Component holding a projectile's remaining lifetime timer
+#[derive(Component)]
+pub struct ProjectileLifetime(pub Timer);
+
 /// Component to identify the animation configuration
 #[derive(Component)]
 pub struct AnimationConfig {
