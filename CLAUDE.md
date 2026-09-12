@@ -59,11 +59,19 @@ The codebase is organized as a Cargo workspace with 7 crates:
 
 - **game_network** (`crates/network`): P2P networking using libp2p with gossipsub, mDNS discovery, and Kademlia DHT.
 
-- **game_interface** (`crates/interface`): Optional Bevy-based game UI. Enabled via `interface` feature flag in game_core. Handles keyboard input, camera, HUD, chat, and sprite rendering.
+- **game_interface** (`crates/interface`): Optional Bevy-based game UI. Enabled via `interface` feature flag in game_core. Handles keyboard input, camera, menus, HUD, chat, and sprite rendering. Key modules:
+  - `screen.rs`: `Screen` state (`Menu` → `Playing` ⇄ `Paused`). Menus are overlays with `DespawnOnExit`; the world renders behind them.
+  - `theme.rs`: single source of colors, type scale, spacing and bundle helpers (`panel`, `text`, `caption`, `shorten`).
+  - `menu.rs`: start and pause menus; keyboard (arrows/WASD + Enter) and pointer navigation over `MenuButton`s.
+  - `hud.rs`: mining stats (session total, claim progress bar, claims), miner identity, online count, chat panel, controls hint.
+  - `input.rs`: one `route_keyboard` system dispatches key presses by screen and chat focus, so keys never reach two consumers.
+  - `chat.rs`: renders chat rows from the `ChatEntry` trait (sender/content/age) and the input field with caret.
+  - `stats.rs` / `toast.rs`: derive session totals and claims from the world's pending-batch counter and show toasts.
+  - Preview without RPC or peers: `cargo run -p game_interface --example preview`.
 
-- **game_primitives** (`crates/primitives`): Shared types and traits (GameEvent, WorldState, ExitStatus, Identifier).
+- **game_primitives** (`crates/primitives`): Shared types and traits (GameEvent, WorldState, ExitStatus, Identifier, ChatEntry).
 
-- **game_sprite** (`crates/sprite`): Character sprite animation logic and asset handling (optional dependency of game_interface).
+- **game_sprite** (`crates/sprite`): Character sprite asset handling (optional dependency of game_interface). Picks a `Character` variant, a `Hat` and a hair color from the keccak256 hash of the peer ID, recolors the hair, composites the hat overlay, and writes `mod_{character}-{id}.png` (gitignored) next to the sheets. Sheets live in `assets/textures/characters/` (all 168x24, seven 24x24 frames) and hat overlays in `assets/textures/hats/`.
 
 ### Key Architectural Patterns
 
@@ -126,7 +134,7 @@ This enables moderate optimization for the core crate while fully optimizing dep
 
 ## Important Implementation Details
 
-- The main event loop never exits until `ExitStatus.exit()` is called (on Quit event or Ctrl+C).
+- The main event loop never exits until `ExitStatus.exit()` is called (on Quit event or Ctrl+C). In the UI, Quit is only reachable from the start/pause menu; `Esc` pauses instead of quitting.
 - Player positions are tracked as `Position` (delta movements, not absolute coordinates).
 - When a new player's movement is seen, they're auto-added to the players pool with default position.
 - Camera boundaries in the interface prevent camera movement until the player is 150px from center.

@@ -1,6 +1,8 @@
 pub mod events;
 pub mod message;
 
+pub use message::ChatEntry;
+
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
@@ -39,7 +41,7 @@ impl ExitStatus {
 /// Used to store the state of the world
 pub trait WorldState: Identifier {
     type Player: Player;
-    type Message: Display;
+    type Message: Display + ChatEntry;
     type MiningBatch: Serialize;
 
     /// Gets the exit status of the world
