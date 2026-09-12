@@ -17,9 +17,10 @@ FONKETH_HOME="${FONKETH_HOME:-$HOME/.fonketh}"
 BIN_DIR="${FONKETH_BIN_DIR:-$HOME/.local/bin}"
 VERSION="${FONKETH_VERSION:-}"
 ARCHIVE=""
-ASSUME_YES=0
-MODIFY_PATH=1
-UNINSTALL=0
+# Env toggles let `curl | sh` users pick options without `sh -s --`
+ASSUME_YES=0;   [ "${FONKETH_YES:-0}" = "1" ] && ASSUME_YES=1
+MODIFY_PATH=1;  [ "${FONKETH_NO_MODIFY_PATH:-0}" = "1" ] && MODIFY_PATH=0
+UNINSTALL=0;    [ "${FONKETH_UNINSTALL:-0}" = "1" ] && UNINSTALL=1
 PURGE=0
 
 # ---------------------------------------------------------------- output ----
@@ -70,7 +71,9 @@ Options:
   -h, --help            Show this help
 
 Environment:
-  FONKETH_HOME, FONKETH_BIN_DIR, FONKETH_VERSION, FONKETH_REPO, NO_COLOR
+  FONKETH_HOME, FONKETH_BIN_DIR, FONKETH_VERSION, FONKETH_REPO   same as the flags above
+  FONKETH_YES=1, FONKETH_NO_MODIFY_PATH=1, FONKETH_UNINSTALL=1  same as -y, --no-modify-path, --uninstall
+  NO_COLOR
 USAGE
 }
 
@@ -439,7 +442,14 @@ if [ "$UNINSTALL" -eq 1 ]; then
 fi
 
 TMP="$(mktemp -d 2> /dev/null || mktemp -d -t fonketh)"
-trap 'rm -rf "$TMP"' EXIT INT TERM
+# Also restore echo in case the hidden key prompt was interrupted
+cleanup() {
+    [ -r /dev/tty ] && stty echo < /dev/tty 2> /dev/null
+    rm -rf "$TMP"
+}
+trap 'cleanup' EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 banner
 need tar

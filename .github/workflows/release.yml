@@ -45,6 +45,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Manual runs build the requested tag, not the branch selected in the UI
+          ref: ${{ github.event.inputs.version || github.ref }}
 
       - name: Resolve version
         id: version
