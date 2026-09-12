@@ -444,7 +444,8 @@ fi
 TMP="$(mktemp -d 2> /dev/null || mktemp -d -t fonketh)"
 # Also restore echo in case the hidden key prompt was interrupted
 cleanup() {
-    [ -r /dev/tty ] && stty echo < /dev/tty 2> /dev/null
+    # stty may fail without a controlling terminal, never let that skip the rm
+    { [ -r /dev/tty ] && stty echo < /dev/tty; } 2> /dev/null || true
     rm -rf "$TMP"
 }
 trap 'cleanup' EXIT
