@@ -1,6 +1,4 @@
-use crate::logic::keyboard_events;
 use crate::prelude::*;
-use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 use std::hash::Hash;
 use std::time::Instant;
@@ -30,26 +28,6 @@ pub enum CharacterState {
     #[default]
     Idle,
     Running,
-}
-
-/// Captures keyboard events and sends them to the core channel
-pub fn capture_key_events<F, Po>(
-    mut evr_keys: MessageReader<KeyboardInput>,
-    sender: Res<KeyEventSender<F, Po>>,
-) where
-    F: Send + Sync + 'static,
-    Po: Position<Unit = i32> + Send + Sync + 'static,
-{
-    for ev in evr_keys.read() {
-        info!("Keyboard event: {ev:?}");
-
-        // Send over channel to core
-        if let Some(event) = keyboard_events(ev.key_code)
-            && let Err(e) = sender.0.send(event)
-        {
-            error!("Error sending keyboard event: {e:?}");
-        }
-    }
 }
 
 /// Tracks network player movements by comparing current positions with previous positions

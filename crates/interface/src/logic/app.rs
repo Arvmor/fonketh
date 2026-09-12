@@ -1,16 +1,27 @@
-use crate::minings::{track_mining_events, update_status_bar};
+use crate::chat::{render_chat_input, render_chat_log};
+use crate::hud::{hide_hud, hide_toasts, setup_hud, show_hud};
+use crate::input::route_keyboard;
+use crate::menu::{handle_menu_pointer, spawn_main_menu, spawn_pause_menu, style_menu_buttons};
 use crate::movements::{
-    capture_key_events, execute_animations, follow_main_player_with_camera,
-    handle_idle_transitions, track_network_movements,
+    execute_animations, follow_main_player_with_camera, handle_idle_transitions,
+    track_network_movements,
 };
 use crate::prelude::*;
+use crate::stats::{track_mining_stats, track_population, update_stat_values};
+use crate::toast::{ToastRequest, show_toasts, tick_toasts};
 use bevy::prelude::*;
+use bevy::window::WindowResolution;
 use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
 use std::fmt::Display;
 use std::hash::Hash;
 use std::path::Path;
 use std::sync::mpsc::Sender;
+
+/// Window title
+const WINDOW_TITLE: &str = "Fonketh";
+/// Initial window size (physical pixels)
+const WINDOW_SIZE: (u32, u32) = (1280, 800);
 
 /// Interface for the game
 ///
@@ -31,43 +42,103 @@ impl Interface {
         P: Identifier<Id = I> + Player + Sync + Send + 'static,
         I: Hash + Eq + Clone + Sync + Send + Display + 'static,
     {
+        let app = Self::build(channel, world).run();
+
+        Self { app }
+    }
+
+    /// Builds the Bevy app without running it
+    ///
+    /// Lets callers (tests, previews) add their own plugins and systems
+    /// before calling [`App::run`].
+    pub fn build<W, P, I, F, Po>(channel: Sender<GameEvent<F, Po>>, world: W) -> App
+    where
+        F: Send + Sync + 'static,
+        Po: Position<Unit = i32> + Send + Sync + 'static,
+        W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
+        P: Identifier<Id = I> + Player + Sync + Send + 'static,
+        I: Hash + Eq + Clone + Sync + Send + Display + 'static,
+    {
         // Config plugins
         let image_plugin = ImagePlugin::default_nearest();
         let asset_plugin = AssetPlugin {
             file_path: "./../..".to_string(),
             ..Default::default()
         };
+        let window_plugin = WindowPlugin {
+            primary_window: Some(Window {
+                title: WINDOW_TITLE.to_string(),
+                resolution: WindowResolution::new(WINDOW_SIZE.0, WINDOW_SIZE.1),
+                ..default()
+            }),
+            ..default()
+        };
 
-        let app = App::new()
+        let mut app = App::new();
+        app
             // Channel to pass Events to core
             .insert_resource(KeyEventSender(channel))
             .insert_resource(WorldStateResource(world))
             .insert_resource(SpawnedPlayers::<P>::default())
             .insert_resource(PlayerStates::<P>::default())
-            .insert_resource(MiningRewards::default())
+            .insert_resource(MiningStats::default())
+            .insert_resource(Population::default())
             .insert_resource(ChatInputText::default())
+            .insert_resource(ChatLogState::default())
+            .insert_resource(MenuSelection::default())
             // prevents blurry sprites
-            .add_plugins(DefaultPlugins.set(image_plugin).set(asset_plugin))
+            .add_plugins(
+                DefaultPlugins
+                    .set(image_plugin)
+                    .set(asset_plugin)
+                    .set(window_plugin),
+            )
+            .init_state::<Screen>()
+            .add_message::<ToastRequest>()
             // Startup systems
-            .add_systems(Startup, setup)
-            .add_systems(Startup, setup_hud)
-            // Update systems
-            .add_systems(Update, capture_key_events::<F, Po>)
-            .add_systems(Update, check_shutdown_conditions::<W>)
-            .add_systems(Update, track_network_movements::<W, P, I>)
-            .add_systems(Update, execute_animations::<W, P, I>)
-            .add_systems(Update, spawn_new_players::<W, P, I>)
-            .add_systems(Update, despawn_quit_players::<W, P, I>)
-            .add_systems(Update, handle_idle_transitions::<W, P, I>)
-            .add_systems(Update, follow_main_player_with_camera)
-            .add_systems(Update, track_mining_events::<W>)
-            .add_systems(Update, update_status_bar)
-            .add_systems(Update, update_player_count::<W>)
-            .add_systems(Update, handle_chat_input::<F, Po>)
-            .add_systems(Update, display_chat_messages::<W>)
-            .run();
+            .add_systems(Startup, (setup, setup_hud::<W>))
+            // Screen transitions
+            .add_systems(OnEnter(Screen::Menu), (spawn_main_menu::<W>, hide_hud))
+            .add_systems(OnEnter(Screen::Playing), show_hud)
+            .add_systems(OnEnter(Screen::Paused), (spawn_pause_menu, hide_toasts))
+            // Input and lifecycle
+            .add_systems(
+                Update,
+                (route_keyboard::<F, Po>, check_shutdown_conditions::<W>),
+            )
+            // World rendering
+            .add_systems(
+                Update,
+                (
+                    spawn_new_players::<W, P, I>,
+                    despawn_quit_players::<W, P, I>,
+                    track_network_movements::<W, P, I>,
+                    handle_idle_transitions::<W, P, I>,
+                    execute_animations::<W, P, I>,
+                    follow_main_player_with_camera,
+                ),
+            )
+            // HUD
+            .add_systems(
+                Update,
+                (
+                    track_mining_stats::<W>,
+                    track_population::<W>,
+                    update_stat_values,
+                    render_chat_log::<W>,
+                    render_chat_input,
+                    show_toasts,
+                    tick_toasts,
+                ),
+            )
+            // Menus
+            .add_systems(
+                Update,
+                (handle_menu_pointer::<F, Po>, style_menu_buttons)
+                    .run_if(not(in_state(Screen::Playing))),
+            );
 
-        Self { app }
+        app
     }
 }
 

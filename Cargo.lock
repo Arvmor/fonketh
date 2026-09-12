@@ -4506,6 +4506,7 @@ dependencies = [
  "bevy",
  "game_primitives",
  "game_sprite",
+ "smol_str",
 ]
 
 [[package]]

@@ -1,10 +1,15 @@
 mod chat;
 mod components;
 mod hud;
+mod input;
 mod logic;
-mod minings;
+mod menu;
 mod movements;
 mod resources;
+mod screen;
+mod stats;
+mod theme;
+mod toast;
 
 /// Prelude for common components and resources
 mod prelude {
@@ -19,10 +24,10 @@ mod prelude {
     /// Camera boundary - vertical distance from center before camera starts following
     pub const CAMERA_BOUNDARY_Y: f32 = 150.0;
 
-    pub use crate::chat::*;
     pub use crate::components::*;
-    pub use crate::hud::*;
     pub use crate::resources::*;
+    pub use crate::screen::Screen;
+    pub use crate::theme::space;
     pub use game_primitives::*;
 }
 

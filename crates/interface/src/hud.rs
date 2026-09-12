@@ -1,135 +1,314 @@
+//! In-game HUD: mining stats, identity, chat and a controls hint.
+//!
+//! Layout (full-screen, non-interactive):
+//!
+//! ```text
+//! [ MINED  12 | NEXT CLAIM ████░░ 4/10 | CLAIMS 1 ]           [ MINER 0x1234...abcd | 3 ONLINE ]
+//!
+//!
+//! [ CHAT                              ]
+//! [  0x0630...88F9  gm      12s       ]
+//! [  you            hello   now       ]                       [ Arrows / WASD  Move ]
+//! [ > type a message_                 ]                       [ Enter  Chat  Esc  Menu ]
+//! ```
+
 use crate::prelude::*;
+use crate::theme::{
+    HAIRLINE, RADIUS_SM, caption, column, font, palette, panel, row, shorten, text,
+};
+use crate::toast::spawn_toast_layer;
 use bevy::prelude::*;
+use std::fmt::Display;
 
-/// HUD text styling constants
-const HUD_TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
-const HUD_BG_COLOR: Color = Color::srgba(0.1, 0.1, 0.1, 0.8);
-const CHAT_TEXT_COLOR: Color = Color::srgb(0.3, 1.0, 0.3);
-const HUD_PADDING_BOTTOM: Val = Val::Px(5.0);
-const HUD_PADDING_ALL: Val = Val::Px(10.0);
-const HUD_FONT_SIZE: f32 = 18.0;
-const CHAT_FONT_SIZE: f32 = 16.0;
+/// Width of the chat panel
+const CHAT_WIDTH: f32 = 400.0;
+/// Height of the scrolling message log
+const CHAT_LOG_HEIGHT: f32 = 160.0;
+/// Width of the claim progress bar
+const PROGRESS_WIDTH: f32 = 120.0;
+/// Height of the claim progress bar
+const PROGRESS_HEIGHT: f32 = 6.0;
 
-/// Sets up the HUD layout with proper structure and positioning
-pub fn setup_hud(mut commands: Commands) {
-    // Root HUD container - covers the entire screen
-    let root = Node {
-        width: Val::Percent(100.0),
-        height: Val::Percent(100.0),
-        flex_direction: FlexDirection::Column,
-        justify_content: JustifyContent::SpaceBetween,
-        ..default()
-    };
+/// Sets up the HUD. It starts hidden and is shown when entering the world.
+pub fn setup_hud<W>(mut commands: Commands, world_state: Res<WorldStateResource<W>>)
+where
+    W: WorldState + Sync + Send + 'static,
+    W::Id: Display,
+{
+    let miner = shorten(&world_state.0.identifier().to_string());
 
-    // Top HUD bar - for mining rewards and player count
-    let top_bar = Node {
-        height: Val::Auto,
-        flex_direction: FlexDirection::Row,
-        padding: UiRect::all(HUD_PADDING_ALL),
-        ..root.clone()
-    };
-
-    // Mining rewards display (left side)
-    let mine_bar = (
-        Text::default(),
-        TextFont {
-            font_size: HUD_FONT_SIZE,
-            ..default()
-        },
-        TextColor(HUD_TEXT_COLOR),
-        StatusBar,
-    );
-
-    // Player count display (right side)
-    let player_bar = (
-        Text::default(),
-        TextFont {
-            font_size: HUD_FONT_SIZE,
-            ..default()
-        },
-        TextColor(HUD_TEXT_COLOR),
-        PlayerCount,
-    );
-
-    // Bottom HUD bar - for chat and instructions
-    let bottom_bar = Node {
-        flex_direction: FlexDirection::Column,
-        ..top_bar.clone()
-    };
-
-    // Chat input field
-    let chat_input = (
-        Text::default(),
-        TextFont {
-            font_size: CHAT_FONT_SIZE,
-            ..default()
-        },
-        TextColor(CHAT_TEXT_COLOR),
-        Node {
-            margin: UiRect::bottom(HUD_PADDING_BOTTOM),
-            ..default()
-        },
-        ChatInput,
-    );
-
-    // Chat box - recent messages
-    let chat_box = (
-        Text::new("> Press Enter to type"),
-        TextFont {
-            font_size: CHAT_FONT_SIZE,
-            ..default()
-        },
-        TextColor(HUD_TEXT_COLOR),
-        Node {
-            margin: UiRect::bottom(HUD_PADDING_BOTTOM),
-            ..default()
-        },
-        ChatBox,
-    );
-
-    // Instructions text
-    let help_text = (
-        Text::new("Arrow Keys: Move | Enter: Chat | Esc: Quit"),
-        TextFont {
-            font_size: CHAT_FONT_SIZE,
-            ..default()
-        },
-        TextColor(HUD_TEXT_COLOR.with_alpha(0.7)),
-        InstructionsText,
-    );
+    spawn_toast_layer(&mut commands);
 
     commands
-        .spawn((root, HudRoot))
-        // Inner HUD structure
-        .with_children(|parent| {
-            // TOP BAR
-            parent
-                .spawn((top_bar, BackgroundColor(HUD_BG_COLOR), TopHudBar))
-                .with_children(|top_bar| {
-                    top_bar.spawn(mine_bar);
-                    top_bar.spawn(player_bar);
-                });
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::SpaceBetween,
+                padding: UiRect::all(Val::Px(space::LG)),
+                ..default()
+            },
+            Pickable::IGNORE,
+            GlobalZIndex(1),
+            Visibility::Hidden,
+            HudRoot,
+        ))
+        .with_children(|hud| {
+            // ---- Top row -------------------------------------------------
+            hud.spawn(Node {
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::FlexStart,
+                ..row(space::MD)
+            })
+            .with_children(|top| {
+                spawn_mining_panel(top);
+                spawn_identity_panel(top, &miner);
+            });
 
-            // BOTTOM BAR
-            parent
-                .spawn((bottom_bar, BackgroundColor(HUD_BG_COLOR), BottomHudBar))
-                .with_children(|bottom_bar| {
-                    bottom_bar.spawn(chat_input);
-                    bottom_bar.spawn(chat_box);
-                    bottom_bar.spawn(help_text);
-                });
+            // ---- Bottom row ----------------------------------------------
+            hud.spawn(Node {
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::FlexEnd,
+                ..row(space::MD)
+            })
+            .with_children(|bottom| {
+                spawn_chat_panel(bottom);
+                spawn_controls_hint(bottom);
+            });
         });
 }
 
-/// System to update player count display
-pub fn update_player_count<W>(
-    world_state: Res<WorldStateResource<W>>,
-    mut text_query: Query<&mut Text, With<PlayerCount>>,
-) where
-    W: WorldState + Sync + Send + 'static,
-{
-    let player_count = world_state.0.get_all_players().len();
-    for mut text in text_query.iter_mut() {
-        text.0 = format!("Online Players #{player_count}");
+/// Filter matching the HUD root and the toast layer
+type HudLayers = Or<(With<HudRoot>, With<ToastLayer>)>;
+
+/// Shows the HUD and toasts
+pub fn show_hud(mut hud: Query<&mut Visibility, HudLayers>) {
+    for mut visibility in hud.iter_mut() {
+        *visibility = Visibility::Inherited;
     }
+}
+
+/// Hides the HUD and toasts (menus keep the HUD visible but hide toasts)
+pub fn hide_hud(mut hud: Query<&mut Visibility, HudLayers>) {
+    for mut visibility in hud.iter_mut() {
+        *visibility = Visibility::Hidden;
+    }
+}
+
+/// Hides toasts while a menu is open so they do not overlap the card
+pub fn hide_toasts(mut layer: Query<&mut Visibility, With<ToastLayer>>) {
+    for mut visibility in layer.iter_mut() {
+        *visibility = Visibility::Hidden;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Panels
+// ---------------------------------------------------------------------------
+
+/// Session total, claim progress and claim count
+fn spawn_mining_panel(parent: &mut ChildSpawnerCommands) {
+    parent
+        .spawn(panel(
+            Node {
+                padding: UiRect::axes(Val::Px(space::LG), Val::Px(space::MD)),
+                align_items: AlignItems::FlexStart,
+                ..row(space::XL)
+            },
+            palette::PANEL,
+        ))
+        .with_children(|p| {
+            spawn_stat(p, "Mined", StatValue::SessionTotal, palette::ACCENT);
+            spawn_divider(p);
+
+            // Claim progress: caption aligned with the neighbours, bar at the baseline
+            p.spawn(Node {
+                align_self: AlignSelf::Stretch,
+                justify_content: JustifyContent::SpaceBetween,
+                ..column(space::XS)
+            })
+            .with_children(|tile| {
+                tile.spawn(caption("Next claim"));
+                tile.spawn(row(space::SM)).with_children(|line| {
+                    line.spawn((
+                        Node {
+                            width: Val::Px(PROGRESS_WIDTH),
+                            height: Val::Px(PROGRESS_HEIGHT),
+                            ..default()
+                        },
+                        BackgroundColor(palette::TRACK),
+                        BorderRadius::all(Val::Px(PROGRESS_HEIGHT / 2.0)),
+                    ))
+                    .with_children(|track| {
+                        track.spawn((
+                            Node {
+                                width: Val::Percent(0.0),
+                                height: Val::Percent(100.0),
+                                ..default()
+                            },
+                            BackgroundColor(palette::ACCENT),
+                            BorderRadius::all(Val::Px(PROGRESS_HEIGHT / 2.0)),
+                            BatchProgressFill,
+                        ));
+                    });
+                    line.spawn((
+                        text("-", font::CHAT, palette::TEXT),
+                        StatValue::PendingBatch,
+                    ));
+                });
+            });
+
+            spawn_divider(p);
+            spawn_stat(p, "Claims", StatValue::Claims, palette::SUCCESS);
+        });
+}
+
+/// Miner address and online count
+fn spawn_identity_panel(parent: &mut ChildSpawnerCommands, miner: &str) {
+    parent
+        .spawn(panel(
+            Node {
+                padding: UiRect::axes(Val::Px(space::LG), Val::Px(space::MD)),
+                ..row(space::XL)
+            },
+            palette::PANEL,
+        ))
+        .with_children(|p| {
+            p.spawn(Node {
+                align_items: AlignItems::FlexEnd,
+                ..column(space::XS)
+            })
+            .with_children(|tile| {
+                tile.spawn(caption("Miner"));
+                tile.spawn(text(miner, font::BODY, palette::TEXT));
+            });
+            spawn_divider(p);
+            p.spawn(Node {
+                align_items: AlignItems::FlexEnd,
+                ..column(space::XS)
+            })
+            .with_children(|tile| {
+                tile.spawn(caption("Online"));
+                tile.spawn((
+                    text("-", font::BODY, palette::INFO),
+                    StatValue::PlayersOnline,
+                ));
+            });
+        });
+}
+
+/// Message log and input field
+fn spawn_chat_panel(parent: &mut ChildSpawnerCommands) {
+    parent
+        .spawn(panel(
+            Node {
+                width: Val::Px(CHAT_WIDTH),
+                max_width: Val::Percent(60.0),
+                padding: UiRect::all(Val::Px(space::MD)),
+                ..column(space::SM)
+            },
+            palette::PANEL,
+        ))
+        .with_children(|p| {
+            p.spawn(caption("Chat"));
+
+            // Log: newest at the bottom, older rows clipped at the top
+            p.spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(CHAT_LOG_HEIGHT),
+                    justify_content: JustifyContent::FlexEnd,
+                    overflow: Overflow::clip_y(),
+                    ..column(space::XS)
+                },
+                ChatLog,
+            ));
+
+            // Input row
+            p.spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    padding: UiRect::axes(Val::Px(space::SM), Val::Px(space::XS + 2.0)),
+                    border: UiRect::all(HAIRLINE),
+                    ..row(space::XS)
+                },
+                BackgroundColor(palette::TRACK),
+                BorderColor::all(palette::BORDER),
+                BorderRadius::all(RADIUS_SM),
+                ChatInputRow,
+            ))
+            .with_children(|input| {
+                input.spawn(text(">", font::CHAT, palette::MUTED));
+                input.spawn((
+                    text("Press Enter to chat", font::CHAT, palette::MUTED),
+                    Node {
+                        flex_grow: 1.0,
+                        flex_shrink: 1.0,
+                        min_width: Val::ZERO,
+                        ..default()
+                    },
+                    ChatInputField,
+                ));
+                input.spawn((
+                    text("|", font::CHAT, palette::ACCENT),
+                    Visibility::Hidden,
+                    ChatCaret,
+                ));
+            });
+        });
+}
+
+/// Key bindings reminder
+fn spawn_controls_hint(parent: &mut ChildSpawnerCommands) {
+    const BINDINGS: [(&str, &str); 3] = [
+        ("Arrows / WASD", "Move"),
+        ("Enter", "Chat"),
+        ("Esc", "Menu"),
+    ];
+
+    parent
+        .spawn(panel(
+            Node {
+                padding: UiRect::axes(Val::Px(space::LG), Val::Px(space::MD)),
+                align_items: AlignItems::FlexEnd,
+                ..column(space::XS)
+            },
+            palette::PANEL,
+        ))
+        .with_children(|p| {
+            for (keys, action) in BINDINGS {
+                p.spawn(row(space::SM)).with_children(|line| {
+                    line.spawn(text(keys, font::SMALL, palette::TEXT));
+                    line.spawn(text(action, font::SMALL, palette::MUTED));
+                });
+            }
+        });
+}
+
+// ---------------------------------------------------------------------------
+// Pieces
+// ---------------------------------------------------------------------------
+
+/// Caption over a large live value
+fn spawn_stat(parent: &mut ChildSpawnerCommands, label: &str, value: StatValue, color: Color) {
+    parent.spawn(column(space::XS)).with_children(|tile| {
+        tile.spawn(caption(label));
+        tile.spawn((text("-", font::STAT, color), value));
+    });
+}
+
+/// Thin vertical separator
+fn spawn_divider(parent: &mut ChildSpawnerCommands) {
+    parent.spawn((
+        Node {
+            width: HAIRLINE,
+            height: Val::Px(font::STAT + space::MD),
+            ..default()
+        },
+        BackgroundColor(palette::BORDER),
+    ));
 }

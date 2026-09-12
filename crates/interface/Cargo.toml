@@ -11,3 +11,7 @@ custom_sprites = ["game_sprite"]
 game_sprite = { workspace = true, optional = true }
 game_primitives.workspace = true
 bevy = "0.17.2"
+
+[dev-dependencies]
+# Used by the `preview` example to synthesize keyboard input
+smol_str = "0.2"

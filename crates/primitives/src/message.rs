@@ -1,6 +1,20 @@
 use serde::ser::{Error, SerializeStruct};
 use std::fmt::{Display, Formatter, Result};
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// Chat Entry
+///
+/// Structured, render-friendly view of a chat message.
+/// Lets user interfaces show the sender, body and age separately
+/// instead of parsing the [`Display`] output.
+pub trait ChatEntry {
+    /// Who sent the message (address or resolved name)
+    fn sender(&self) -> &str;
+    /// The message body
+    fn content(&self) -> &str;
+    /// How long ago the message was received
+    fn age(&self) -> Duration;
+}
 
 /// Chat Message
 ///
@@ -42,6 +56,20 @@ impl ChatMessage {
             message,
             timestamp,
         }
+    }
+}
+
+impl ChatEntry for ChatMessage {
+    fn sender(&self) -> &str {
+        &self.identifier
+    }
+
+    fn content(&self) -> &str {
+        &self.message
+    }
+
+    fn age(&self) -> Duration {
+        self.timestamp.elapsed()
     }
 }
 
