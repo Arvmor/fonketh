@@ -1,0 +1,194 @@
+name: Release
+
+# Builds the game and the install wizard for every desktop platform.
+#
+# Per target the release gets:
+#   fonketh-installer-<target>(.exe)       the wizard players download and run
+#   fonketh-<version>-<target>.tar.gz|zip  what the wizard fetches, unpacks to
+#     fonketh-<version>-<target>/
+#     ├── bin/fonketh(.exe)
+#     ├── assets/
+#     ├── fonketh-launcher(.exe)   same binary as the installer
+#     ├── README.md
+#     └── VERSION
+# plus a `SHA256SUMS.txt` covering every file.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to publish (e.g. v0.2.0), must already exist"
+        required: true
+
+env:
+  # Cargo features the shipped game is built with
+  RELEASE_FEATURES: interface
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Manual runs build the requested tag, not the branch selected in the UI
+          ref: ${{ github.event.inputs.version || github.ref }}
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies (Bevy)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build game
+        run: cargo build --release --locked --target ${{ matrix.target }} -p game_app --features ${{ env.RELEASE_FEATURES }}
+
+      - name: Build installer
+        run: cargo build --release --locked --target ${{ matrix.target }} -p game_installer
+
+      - name: Package
+        id: package
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          # Keep macOS tar from adding ._* metadata files
+          COPYFILE_DISABLE: 1
+        run: |
+          set -euo pipefail
+          name="fonketh-${VERSION}-${TARGET}"
+          stage="dist/${name}"
+          mkdir -p "${stage}/bin"
+
+          # The installer doubles as the in-place launcher/updater, so it ships
+          # both standalone and inside the archive (as fonketh-launcher)
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            cp "target/${TARGET}/release/app.exe" "${stage}/bin/fonketh.exe"
+            cp "target/${TARGET}/release/fonketh-installer.exe" "${stage}/fonketh-launcher.exe"
+            cp "target/${TARGET}/release/fonketh-installer.exe" "dist/fonketh-installer-${TARGET}.exe"
+          else
+            cp "target/${TARGET}/release/app" "${stage}/bin/fonketh"
+            cp "target/${TARGET}/release/fonketh-installer" "${stage}/fonketh-launcher"
+            cp "target/${TARGET}/release/fonketh-installer" "dist/fonketh-installer-${TARGET}"
+            chmod +x "${stage}/bin/fonketh" "${stage}/fonketh-launcher" "dist/fonketh-installer-${TARGET}"
+          fi
+
+          # Ship the texture sheets but not the per-player composites
+          mkdir -p "${stage}/assets"
+          cp -R assets/textures "${stage}/assets/"
+          find "${stage}/assets" \( -name 'mod_*.png' -o -name '.DS_Store' \) -delete
+          cp README.md "${stage}/"
+          echo "${VERSION}" > "${stage}/VERSION"
+
+          cd dist
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            archive="${name}.zip"
+            7z a -tzip "${archive}" "${name}" > /dev/null
+          else
+            archive="${name}.tar.gz"
+            tar -czf "${archive}" "${name}"
+          fi
+          rm -rf "${name}"
+          echo "archive=${archive}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/${{ steps.package.outputs.archive }}
+            dist/fonketh-installer-*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum fonketh-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Fonketh ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/fonketh-*
+            dist/SHA256SUMS.txt
+          body: |
+            ## Install
+
+            Download the install wizard for your platform and run it:
+
+            | Platform | Installer |
+            |---|---|
+            | macOS (Apple Silicon) | `fonketh-installer-aarch64-apple-darwin` |
+            | macOS (Intel) | `fonketh-installer-x86_64-apple-darwin` |
+            | Windows (x64) | `fonketh-installer-x86_64-pc-windows-msvc.exe` |
+            | Linux (x64) | `fonketh-installer-x86_64-unknown-linux-gnu` |
+
+            On macOS and Linux, mark it executable first: `chmod +x fonketh-installer-*` then `./fonketh-installer-*`.
+            The wizard downloads the matching `fonketh-<version>-<target>` archive below, verifies it and sets the game up.
+            Run it again to upgrade, or with `--uninstall` to remove the game. See `docs/INSTALL.md` for details.

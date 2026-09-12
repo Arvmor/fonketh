@@ -7,6 +7,13 @@ edition = "2024"
 name = "app"
 path = "src/main.rs"
 
+[features]
+default = []
+# Bevy game window; release binaries are built with this on
+interface = ["game_core/interface"]
+# Continuous CREATE2 mining in the main loop
+mine = ["game_core/mine"]
+
 [dependencies]
 game_core = { workspace = true, features = ["api"] }
 tracing-subscriber.workspace = true

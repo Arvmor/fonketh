@@ -13,10 +13,29 @@ Traditional *Proof-of-Work* (PoW) protocols were originally designed around solo
 While mining pools mitigate some of this imbalance, they remain tightly coupled to specific blockchains or protocols. **FonkETH** introduces a protocol-agnostic *peer-to-peer* (P2P) networking layer that allows miners of any scale to *aggregate* their compute, coordinate work, and share *context-dependent* opportunities (e.g., miners with different capabilities or insights can contribute uniquely to the process). This approach enables **proportional reward distribution** among participants based on their actual contribution.
 
 ### How to Play
+
+Download the install wizard for your platform from the [latest release](https://github.com/Arvmor/fonketh/releases/latest) and run it:
+
+| Platform | Installer |
+|---|---|
+| macOS (Apple Silicon) | `fonketh-installer-aarch64-apple-darwin` |
+| macOS (Intel) | `fonketh-installer-x86_64-apple-darwin` |
+| Windows (x64) | `fonketh-installer-x86_64-pc-windows-msvc.exe` |
+| Linux (x64) | `fonketh-installer-x86_64-unknown-linux-gnu` |
+
+```bash
+# macOS / Linux: mark it executable, then run it
+chmod +x fonketh-installer-*
+./fonketh-installer-*
+```
+
+The wizard downloads the game, verifies its checksum, puts a `fonketh` command on your PATH and sets up your miner key. From then on `fonketh` keeps the game up to date automatically and starts it. See [docs/INSTALL.md](./docs/INSTALL.md) for options, updates and uninstalling.
+
+Or build from source:
 ```bash
 $ git clone https://github.com/Arvmor/fonketh.git
 $ cd fonketh
-$ cargo run -F interface --release
+$ cargo run -p game_app -F interface --release
 ```
 
 ## Overview

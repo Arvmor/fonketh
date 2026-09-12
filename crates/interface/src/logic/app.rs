@@ -15,7 +15,6 @@ use game_primitives::events::GameEvent;
 use game_primitives::{Identifier, Player, Position, WorldState};
 use std::fmt::Display;
 use std::hash::Hash;
-use std::path::Path;
 use std::sync::mpsc::Sender;
 
 /// Window title
@@ -61,8 +60,10 @@ impl Interface {
     {
         // Config plugins
         let image_plugin = ImagePlugin::default_nearest();
+        let assets_root = AssetsRoot::locate();
+        info!("Loading assets from {}", assets_root.0.display());
         let asset_plugin = AssetPlugin {
-            file_path: "./../..".to_string(),
+            file_path: assets_root.0.to_string_lossy().into_owned(),
             ..Default::default()
         };
         let window_plugin = WindowPlugin {
@@ -78,6 +79,7 @@ impl Interface {
         app
             // Channel to pass Events to core
             .insert_resource(KeyEventSender(channel))
+            .insert_resource(assets_root)
             .insert_resource(WorldStateResource(world))
             .insert_resource(SpawnedPlayers::<P>::default())
             .insert_resource(PlayerStates::<P>::default())
@@ -147,7 +149,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2d);
 
     // Spawn the grass background
-    let image = asset_server.load("./assets/textures/background/full.png");
+    let image = asset_server.load("assets/textures/background/full.png");
     commands.spawn((
         Sprite { image, ..default() },
         Transform::from_translation(Vec3::new(0., 0., -1.)).with_scale(Vec3::splat(1.5)),
@@ -161,6 +163,7 @@ fn spawn_new_players<W, P, I>(
     world_state: Res<WorldStateResource<W>>,
     mut spawned_players: ResMut<SpawnedPlayers<P>>,
     asset_server: Res<AssetServer>,
+    assets_root: Res<AssetsRoot>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) where
     W: WorldState<Id = I, Player = P> + Sync + Send + 'static,
@@ -168,7 +171,7 @@ fn spawn_new_players<W, P, I>(
     I: Sync + Send + Clone + Hash + Eq + Display + 'static,
 {
     // Textures directory holding `characters/` and `hats/`, plus the plain fallback sheet
-    let textures = Path::new("./assets/textures");
+    let textures = assets_root.textures();
     let fallback = textures.join("characters").join("gabe-idle-run.png");
     let local_player_id = world_state.0.identifier();
 
@@ -180,7 +183,7 @@ fn spawn_new_players<W, P, I>(
 
         // Compose the sprite sheet (character, hat and hair color) from the player's id
         #[cfg(feature = "custom_sprites")]
-        let path = game_sprite::SpriteImage::from_identifier(textures, peer_id.to_string())
+        let path = game_sprite::SpriteImage::from_identifier(&textures, peer_id.to_string())
             .unwrap_or_else(|e| {
                 error!("Failed to compose sprite image: {e}");
                 fallback.clone()
@@ -188,8 +191,8 @@ fn spawn_new_players<W, P, I>(
         #[cfg(not(feature = "custom_sprites"))]
         let path = fallback.clone();
 
-        // Load the sprite sheet using the `AssetServer`
-        let image = asset_server.load(path);
+        // Load the sprite sheet using the `AssetServer`, relative to the assets root
+        let image = asset_server.load(assets_root.asset_path(&path));
         let texture_atlas_layout =
             TextureAtlasLayout::from_grid(UVec2::splat(24), 7, 1, None, None);
         let layout = texture_atlas_layouts.add(texture_atlas_layout);
