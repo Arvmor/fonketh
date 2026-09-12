@@ -57,6 +57,44 @@ pub struct MiningStats {
     pub claims: u32,
 }
 
+/// What changed between two observations of the pending-batch counter
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MiningChange {
+    /// `mined` treasures joined the batch
+    Mined { mined: u32 },
+    /// The batch was drained into a claim; `mined` treasures arrived since the last observation
+    Claimed { mined: u32 },
+}
+
+impl MiningStats {
+    /// Folds a new pending-batch reading into the stats
+    ///
+    /// The core inserts the treasure that fills the batch and drains the
+    /// batch in the same tick, so a full batch is almost never observed.
+    /// A drop therefore means the batch reached [`CLAIM_BATCH_SIZE`] and was
+    /// drained: everything between the last reading and the batch size, plus
+    /// whatever is pending now, was mined since.
+    pub fn observe(&mut self, pending: u32) -> Option<MiningChange> {
+        let change = match pending.cmp(&self.pending) {
+            std::cmp::Ordering::Equal => return None,
+            std::cmp::Ordering::Greater => {
+                let mined = pending - self.pending;
+                self.session_total += mined;
+                MiningChange::Mined { mined }
+            }
+            std::cmp::Ordering::Less => {
+                let mined = CLAIM_BATCH_SIZE.saturating_sub(self.pending) + pending;
+                self.session_total += mined;
+                self.claims += 1;
+                MiningChange::Claimed { mined }
+            }
+        };
+
+        self.pending = pending;
+        Some(change)
+    }
+}
+
 /// Player population as last observed by the interface
 #[derive(Resource, Default, Debug)]
 pub struct Population {
@@ -189,6 +227,26 @@ mod tests {
         input.activate();
         input.push_str("   ");
         assert_eq!(input.submit(), None);
+    }
+
+    #[test]
+    fn mining_stats_count_the_treasure_that_fills_the_batch() {
+        let mut stats = MiningStats::default();
+        assert_eq!(stats.observe(3), Some(MiningChange::Mined { mined: 3 }));
+        assert_eq!(stats.observe(3), None);
+        assert_eq!(stats.observe(9), Some(MiningChange::Mined { mined: 6 }));
+
+        // 10th treasure lands and the batch is drained in the same core tick
+        assert_eq!(stats.observe(0), Some(MiningChange::Claimed { mined: 1 }));
+        assert_eq!(stats.session_total, 10);
+        assert_eq!(stats.claims, 1);
+
+        // Two more land before the UI polls; one fills the batch, one starts the next
+        assert_eq!(stats.observe(9), Some(MiningChange::Mined { mined: 9 }));
+        assert_eq!(stats.observe(1), Some(MiningChange::Claimed { mined: 2 }));
+        assert_eq!(stats.session_total, 21);
+        assert_eq!(stats.claims, 2);
+        assert_eq!(stats.pending, 1);
     }
 
     #[test]

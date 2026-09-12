@@ -244,27 +244,27 @@ where
             GameEvent::ChatMessage(message) => {
                 // Check Cache
                 let cached_name = self.ens_cache.read().unwrap().get(identifier).cloned();
-                let identifier = match cached_name {
-                    Some(n) => n,
+                let name = match cached_name {
+                    Some(n) => Some(n),
                     // Get ENS name
                     None => match client.ens.nameForAddr(*identifier).call().await {
-                        Ok(n) if n.is_empty() => identifier.to_string(),
+                        Ok(n) if n.is_empty() => None,
                         Ok(n) => {
                             self.ens_cache
                                 .write()
                                 .unwrap()
                                 .insert(*identifier, n.clone());
-                            n
+                            Some(n)
                         }
                         Err(e) => {
                             error!("Failed to get ENS name for address {identifier:?}: {e}");
-                            identifier.to_string()
+                            None
                         }
                     },
                 };
 
-                info!("Player {identifier:?} sent chat message: {message}");
-                self.add_chat_message(identifier, message.clone());
+                info!("Player {identifier:?} ({name:?}) sent chat message: {message}");
+                self.add_chat_message(identifier.to_string(), name, message.clone());
             }
             GameEvent::Quit => {
                 info!("Player {identifier:?} quit");
@@ -297,9 +297,11 @@ where
     }
 
     /// Adds a chat message to the messages pool
-    pub fn add_chat_message(&self, identifier: String, message: String) {
+    ///
+    /// `identifier` is the sender's address; `name` its resolved ENS name, if any
+    pub fn add_chat_message(&self, identifier: String, name: Option<String>, message: String) {
         let mut messages = self.messages.write().unwrap();
-        messages.push(ChatMessage::new(identifier, message));
+        messages.push(ChatMessage::new(identifier, message).with_name(name));
     }
 }
 

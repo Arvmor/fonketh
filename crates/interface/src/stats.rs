@@ -12,37 +12,29 @@ pub fn track_mining_stats<W: WorldState + Sync + Send + 'static>(
     mut toasts: MessageWriter<ToastRequest>,
 ) {
     let pending = world_state.0.get_mining_rewards_count();
-    if pending == stats.pending {
-        return;
-    }
 
-    if pending > stats.pending {
-        // New treasures joined the batch
-        let mined = pending - stats.pending;
-        stats.session_total += mined;
-        toasts.write(
-            ToastRequest::new(
-                if mined == 1 {
-                    "Treasure mined".to_string()
-                } else {
-                    format!("{mined} treasures mined")
-                },
-                palette::ACCENT,
-            )
-            .with_detail(format!("{pending}/{CLAIM_BATCH_SIZE} towards next claim")),
-        );
-    } else {
-        // The batch was drained into an on-chain claim. Anything mined in the
-        // same tick shows up as the new pending value.
-        stats.claims += 1;
-        stats.session_total += pending;
-        toasts.write(
-            ToastRequest::new("Claim submitted on-chain", palette::SUCCESS)
-                .with_detail(format!("Batch of {CLAIM_BATCH_SIZE} treasures")),
-        );
+    match stats.observe(pending) {
+        None => {}
+        Some(MiningChange::Mined { mined }) => {
+            toasts.write(
+                ToastRequest::new(
+                    if mined == 1 {
+                        "Treasure mined".to_string()
+                    } else {
+                        format!("{mined} treasures mined")
+                    },
+                    palette::ACCENT,
+                )
+                .with_detail(format!("{pending}/{CLAIM_BATCH_SIZE} towards next claim")),
+            );
+        }
+        Some(MiningChange::Claimed { .. }) => {
+            toasts.write(
+                ToastRequest::new("Claim submitted on-chain", palette::SUCCESS)
+                    .with_detail(format!("Batch of {CLAIM_BATCH_SIZE} treasures")),
+            );
+        }
     }
-
-    stats.pending = pending;
 }
 
 /// Watches the player count and toasts on joins and leaves

@@ -40,7 +40,8 @@ pub fn render_chat_log<W>(
         .despawn_related::<Children>()
         .with_children(|log| {
             for message in &messages[start..] {
-                let is_local = message.sender() == local;
+                // Compare the stable id: the display name may be an ENS name
+                let is_local = message.sender_id() == local;
                 let sender_color = if is_local {
                     palette::ACCENT
                 } else {
