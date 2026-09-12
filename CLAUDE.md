@@ -63,7 +63,7 @@ The codebase is organized as a Cargo workspace with 7 crates:
 
 - **game_primitives** (`crates/primitives`): Shared types and traits (GameEvent, WorldState, ExitStatus, Identifier).
 
-- **game_sprite** (`crates/sprite`): Character sprite animation logic and asset handling (optional dependency of game_interface).
+- **game_sprite** (`crates/sprite`): Character sprite asset handling (optional dependency of game_interface). Picks a `Character` variant, a `Hat` and a hair color from the keccak256 hash of the peer ID, recolors the hair, composites the hat overlay, and writes `mod_{character}-{id}.png` (gitignored) next to the sheets. Sheets live in `assets/textures/characters/` (all 168x24, seven 24x24 frames) and hat overlays in `assets/textures/hats/`.
 
 ### Key Architectural Patterns
 
