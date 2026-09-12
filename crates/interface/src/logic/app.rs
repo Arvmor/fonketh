@@ -96,8 +96,9 @@ fn spawn_new_players<W, P, I>(
     P: Identifier<Id = I> + Player + Sync + Send + 'static,
     I: Sync + Send + Clone + Hash + Eq + Display + 'static,
 {
-    // Plain Character Sprite Path
-    let path = Path::new("./assets/textures/characters/gabe-idle-run.png");
+    // Textures directory holding `characters/` and `hats/`, plus the plain fallback sheet
+    let textures = Path::new("./assets/textures");
+    let fallback = textures.join("characters").join("gabe-idle-run.png");
     let local_player_id = world_state.0.identifier();
 
     for (peer_id, character) in world_state.0.get_all_players() {
@@ -106,13 +107,15 @@ fn spawn_new_players<W, P, I>(
             continue;
         }
 
-        // Modify the sprite image based on the player's color
+        // Compose the sprite sheet (character, hat and hair color) from the player's id
         #[cfg(feature = "custom_sprites")]
-        let path = game_sprite::SpriteImage::from_identifier(path, peer_id.to_string())
+        let path = game_sprite::SpriteImage::from_identifier(textures, peer_id.to_string())
             .unwrap_or_else(|e| {
-                error!("Failed to modify sprite image: {e}");
-                path.to_path_buf()
+                error!("Failed to compose sprite image: {e}");
+                fallback.clone()
             });
+        #[cfg(not(feature = "custom_sprites"))]
+        let path = fallback.clone();
 
         // Load the sprite sheet using the `AssetServer`
         let image = asset_server.load(path);
