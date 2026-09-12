@@ -1,3 +1,4 @@
+mod assets;
 mod chat;
 mod components;
 mod hud;
@@ -24,6 +25,7 @@ mod prelude {
     /// Camera boundary - vertical distance from center before camera starts following
     pub const CAMERA_BOUNDARY_Y: f32 = 150.0;
 
+    pub use crate::assets::AssetsRoot;
     pub use crate::components::*;
     pub use crate::resources::*;
     pub use crate::screen::Screen;

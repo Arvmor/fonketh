@@ -23,6 +23,9 @@ cargo run --bin app --release path/to/key.txt
 # Run with environment variable
 PRIVATE_KEY=<hex_private_key> cargo run --bin app --release
 
+# Run the game with the Bevy window (what releases ship)
+cargo run -p game_app -F interface --release
+
 # Run tests
 cargo test
 
@@ -30,6 +33,12 @@ cargo test
 cargo test -p game_contract
 cargo test -p game_network
 ```
+
+## Releases and Installer
+
+- `.github/workflows/release.yml` runs on `v*` tags (or manually) and builds `game_app` with `-F interface` for macOS (arm64, x86_64), Windows (x86_64) and Linux (x86_64). Each archive `fonketh-<tag>-<target>.tar.gz|.zip` unpacks to `bin/fonketh`, `assets/`, `README.md`, `VERSION`; `SHA256SUMS.txt` covers all of them. Features shipped are set by `RELEASE_FEATURES` in the workflow.
+- `install.sh` (macOS/Linux, POSIX sh) and `install.ps1` (Windows) are the end-user wizards: detect platform, resolve the latest tag via the `releases/latest` redirect (no API calls), download + verify + unpack into `~/.fonketh` / `%LOCALAPPDATA%\Programs\Fonketh`, install a launcher that `cd`s into that directory before starting the binary (so `./private.key` and sprite composites land there), optionally edit PATH, and set up the miner key. Both support `--archive` for offline installs and `--uninstall`. Details in `docs/INSTALL.md`.
+- Asset lookup lives in `crates/interface/src/assets.rs`: `FONKETH_ASSETS` env → `CARGO_MANIFEST_DIR/../..` (cargo run) → exe dir, its parent or grandparent → cwd, first one containing `assets/`. Bevy paths are given relative to that root (`assets/textures/...`), never relative to cwd.
 
 ## Private Key Management
 
@@ -45,7 +54,7 @@ The app loads a private key in the following priority order:
 
 The codebase is organized as a Cargo workspace with 7 crates:
 
-- **game_app** (`crates/app`): Main binary entry point. Initializes the World with a Character and starts the game loop.
+- **game_app** (`crates/app`): Main binary entry point. Initializes the World with a Character and starts the game loop. Features `interface` and `mine` forward to `game_core`.
 
 - **game_core** (`crates/core`): Core game logic containing the World state management, player pool, and main event loop. The World orchestrates three main components:
   - Network layer (P2P gossip)

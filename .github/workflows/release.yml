@@ -1,0 +1,174 @@
+name: Release
+
+# Builds the game for every desktop platform and publishes the archives the
+# installer (`install.sh` / `install.ps1`) downloads.
+#
+# Each archive unpacks to:
+#   fonketh-<version>-<target>/
+#   ├── bin/fonketh(.exe)
+#   ├── assets/
+#   ├── README.md
+#   └── VERSION
+# plus a `SHA256SUMS.txt` covering all archives.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to publish (e.g. v0.2.0), must already exist"
+        required: true
+
+env:
+  # Cargo features the shipped game is built with
+  RELEASE_FEATURES: interface
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies (Bevy)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }} -p game_app --features ${{ env.RELEASE_FEATURES }}
+
+      - name: Package
+        id: package
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          name="fonketh-${VERSION}-${TARGET}"
+          stage="dist/${name}"
+          mkdir -p "${stage}/bin"
+
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            cp "target/${TARGET}/release/app.exe" "${stage}/bin/fonketh.exe"
+          else
+            cp "target/${TARGET}/release/app" "${stage}/bin/fonketh"
+            chmod +x "${stage}/bin/fonketh"
+          fi
+
+          # Ship the texture sheets but not the per-player composites
+          mkdir -p "${stage}/assets"
+          cp -R assets/textures "${stage}/assets/"
+          find "${stage}/assets" \( -name 'mod_*.png' -o -name '.DS_Store' \) -delete
+          cp README.md "${stage}/"
+          echo "${VERSION}" > "${stage}/VERSION"
+
+          cd dist
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            archive="${name}.zip"
+            7z a -tzip "${archive}" "${name}" > /dev/null
+          else
+            archive="${name}.tar.gz"
+            tar -czf "${archive}" "${name}"
+          fi
+          echo "archive=${archive}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.archive }}
+          path: dist/${{ steps.package.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum fonketh-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Fonketh ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/fonketh-*
+            dist/SHA256SUMS.txt
+          body: |
+            ## Install
+
+            **macOS / Linux**
+            ```sh
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/master/install.sh | sh
+            ```
+
+            **Windows** (PowerShell)
+            ```powershell
+            irm https://raw.githubusercontent.com/${{ github.repository }}/master/install.ps1 | iex
+            ```
+
+            Or download the archive for your platform below, unpack it and run `bin/fonketh`.
