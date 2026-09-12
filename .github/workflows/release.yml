@@ -1,15 +1,17 @@
 name: Release
 
-# Builds the game for every desktop platform and publishes the archives the
-# installer (`install.sh` / `install.ps1`) downloads.
+# Builds the game and the install wizard for every desktop platform.
 #
-# Each archive unpacks to:
-#   fonketh-<version>-<target>/
-#   ├── bin/fonketh(.exe)
-#   ├── assets/
-#   ├── README.md
-#   └── VERSION
-# plus a `SHA256SUMS.txt` covering all archives.
+# Per target the release gets:
+#   fonketh-installer-<target>(.exe)       the wizard players download and run
+#   fonketh-<version>-<target>.tar.gz|zip  what the wizard fetches, unpacks to
+#     fonketh-<version>-<target>/
+#     ├── bin/fonketh(.exe)
+#     ├── assets/
+#     ├── fonketh-launcher(.exe)   same binary as the installer
+#     ├── README.md
+#     └── VERSION
+# plus a `SHA256SUMS.txt` covering every file.
 
 on:
   push:
@@ -76,8 +78,11 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Build
+      - name: Build game
         run: cargo build --release --locked --target ${{ matrix.target }} -p game_app --features ${{ env.RELEASE_FEATURES }}
+
+      - name: Build installer
+        run: cargo build --release --locked --target ${{ matrix.target }} -p game_installer
 
       - name: Package
         id: package
@@ -85,17 +90,25 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           TARGET: ${{ matrix.target }}
+          # Keep macOS tar from adding ._* metadata files
+          COPYFILE_DISABLE: 1
         run: |
           set -euo pipefail
           name="fonketh-${VERSION}-${TARGET}"
           stage="dist/${name}"
           mkdir -p "${stage}/bin"
 
+          # The installer doubles as the in-place launcher/updater, so it ships
+          # both standalone and inside the archive (as fonketh-launcher)
           if [ "${RUNNER_OS}" = "Windows" ]; then
             cp "target/${TARGET}/release/app.exe" "${stage}/bin/fonketh.exe"
+            cp "target/${TARGET}/release/fonketh-installer.exe" "${stage}/fonketh-launcher.exe"
+            cp "target/${TARGET}/release/fonketh-installer.exe" "dist/fonketh-installer-${TARGET}.exe"
           else
             cp "target/${TARGET}/release/app" "${stage}/bin/fonketh"
-            chmod +x "${stage}/bin/fonketh"
+            cp "target/${TARGET}/release/fonketh-installer" "${stage}/fonketh-launcher"
+            cp "target/${TARGET}/release/fonketh-installer" "dist/fonketh-installer-${TARGET}"
+            chmod +x "${stage}/bin/fonketh" "${stage}/fonketh-launcher" "dist/fonketh-installer-${TARGET}"
           fi
 
           # Ship the texture sheets but not the per-player composites
@@ -113,13 +126,16 @@ jobs:
             archive="${name}.tar.gz"
             tar -czf "${archive}" "${name}"
           fi
+          rm -rf "${name}"
           echo "archive=${archive}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.package.outputs.archive }}
-          path: dist/${{ steps.package.outputs.archive }}
+          name: ${{ matrix.target }}
+          path: |
+            dist/${{ steps.package.outputs.archive }}
+            dist/fonketh-installer-*
           if-no-files-found: error
           retention-days: 7
 
@@ -164,14 +180,15 @@ jobs:
           body: |
             ## Install
 
-            **macOS / Linux**
-            ```sh
-            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/master/install.sh | sh
-            ```
+            Download the install wizard for your platform and run it:
 
-            **Windows** (PowerShell)
-            ```powershell
-            irm https://raw.githubusercontent.com/${{ github.repository }}/master/install.ps1 | iex
-            ```
+            | Platform | Installer |
+            |---|---|
+            | macOS (Apple Silicon) | `fonketh-installer-aarch64-apple-darwin` |
+            | macOS (Intel) | `fonketh-installer-x86_64-apple-darwin` |
+            | Windows (x64) | `fonketh-installer-x86_64-pc-windows-msvc.exe` |
+            | Linux (x64) | `fonketh-installer-x86_64-unknown-linux-gnu` |
 
-            Or download the archive for your platform below, unpack it and run `bin/fonketh`.
+            On macOS and Linux, mark it executable first: `chmod +x fonketh-installer-*` then `./fonketh-installer-*`.
+            The wizard downloads the matching `fonketh-<version>-<target>` archive below, verifies it and sets the game up.
+            Run it again to upgrade, or with `--uninstall` to remove the game. See `docs/INSTALL.md` for details.

@@ -14,19 +14,22 @@ While mining pools mitigate some of this imbalance, they remain tightly coupled 
 
 ### How to Play
 
-Install the latest release with the interactive installer, then run `fonketh`.
+Download the install wizard for your platform from the [latest release](https://github.com/Arvmor/fonketh/releases/latest) and run it:
 
-**macOS / Linux**
+| Platform | Installer |
+|---|---|
+| macOS (Apple Silicon) | `fonketh-installer-aarch64-apple-darwin` |
+| macOS (Intel) | `fonketh-installer-x86_64-apple-darwin` |
+| Windows (x64) | `fonketh-installer-x86_64-pc-windows-msvc.exe` |
+| Linux (x64) | `fonketh-installer-x86_64-unknown-linux-gnu` |
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Arvmor/fonketh/master/install.sh | sh
+# macOS / Linux: mark it executable, then run it
+chmod +x fonketh-installer-*
+./fonketh-installer-*
 ```
 
-**Windows** (PowerShell)
-```powershell
-irm https://raw.githubusercontent.com/Arvmor/fonketh/master/install.ps1 | iex
-```
-
-The wizard downloads the build for your platform from [GitHub Releases](https://github.com/Arvmor/fonketh/releases), verifies its checksum, puts a `fonketh` launcher on your PATH and sets up your miner key. See [docs/INSTALL.md](./docs/INSTALL.md) for options, upgrading and uninstalling.
+The wizard downloads the game, verifies its checksum, puts a `fonketh` command on your PATH and sets up your miner key. From then on `fonketh` keeps the game up to date automatically and starts it. See [docs/INSTALL.md](./docs/INSTALL.md) for options, updates and uninstalling.
 
 Or build from source:
 ```bash

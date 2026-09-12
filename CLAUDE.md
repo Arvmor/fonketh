@@ -34,11 +34,13 @@ cargo test -p game_contract
 cargo test -p game_network
 ```
 
-## Releases and Installer
+## Releases, Installer and Auto-Update
 
-- `.github/workflows/release.yml` runs on `v*` tags (or manually) and builds `game_app` with `-F interface` for macOS (arm64, x86_64), Windows (x86_64) and Linux (x86_64). Each archive `fonketh-<tag>-<target>.tar.gz|.zip` unpacks to `bin/fonketh`, `assets/`, `README.md`, `VERSION`; `SHA256SUMS.txt` covers all of them. Features shipped are set by `RELEASE_FEATURES` in the workflow.
-- `install.sh` (macOS/Linux, POSIX sh) and `install.ps1` (Windows) are the end-user wizards: detect platform, resolve the latest tag via the `releases/latest` redirect (no API calls), download + verify + unpack into `~/.fonketh` / `%LOCALAPPDATA%\Programs\Fonketh`, install a launcher that `cd`s into that directory before starting the binary (so `./private.key` and sprite composites land there), optionally edit PATH, and set up the miner key. Both support `--archive` for offline installs and `--uninstall`. Details in `docs/INSTALL.md`.
+- `.github/workflows/release.yml` runs on `v*` tags (or manually for an existing tag) and builds `game_app -F interface` plus `game_installer` for macOS (arm64, x86_64), Windows (x86_64) and Linux (x86_64). Per target it uploads `fonketh-installer-<target>[.exe]` and `fonketh-<tag>-<target>.tar.gz|.zip` (unpacks to `bin/fonketh`, `assets/`, `fonketh-launcher`, `README.md`, `VERSION`); `SHA256SUMS.txt` covers everything. Features shipped are set by `RELEASE_FEATURES`.
+- **game_installer** (`crates/installer`, binary `fonketh-installer`): the only supported install path. Subcommands: default/`install` (six-step wizard, `-y` for unattended, `--archive` for offline), `launch` (update if allowed, then `exec`/spawn the game from its home), `update [--check] [--auto on|off]`, `uninstall [--purge]`. Modules: `release.rs` (latest tag via the `releases/latest` redirect, downloads with progress, `SHA256SUMS.txt` verification, `FONKETH_RELEASES_URL` mirror override), `layout.rs` (paths, atomic `bin/`+`assets/` swap with rollback, launcher script, PATH/shortcuts per platform, self-replacement via rename), `update.rs` (`launcher.conf` settings, check/apply), `key.rs`, `ui.rs` (dialoguer prompts, silent defaults when non-interactive).
+- Install layout: `~/.fonketh` or `%LOCALAPPDATA%\Programs\Fonketh` holding `bin/`, `assets/`, `fonketh-launcher` (a copy of the installer), `private.key`, `launcher.conf`, `VERSION`. The `fonketh` command (`~/.local/bin/fonketh` or `fonketh.cmd`) runs `fonketh-launcher launch`. The launcher lives outside `bin/` so it can replace that directory while running; Windows shortcuts target the launcher with the `launch` argument.
 - Asset lookup lives in `crates/interface/src/assets.rs`: `FONKETH_ASSETS` env → `CARGO_MANIFEST_DIR/../..` (cargo run) → exe dir, its parent or grandparent → cwd, first one containing `assets/`. Bevy paths are given relative to that root (`assets/textures/...`), never relative to cwd.
+- Details for users in `docs/INSTALL.md`.
 
 ## Private Key Management
 
@@ -52,7 +54,7 @@ The app loads a private key in the following priority order:
 
 ### Workspace Structure
 
-The codebase is organized as a Cargo workspace with 7 crates:
+The codebase is organized as a Cargo workspace with 9 crates:
 
 - **game_app** (`crates/app`): Main binary entry point. Initializes the World with a Character and starts the game loop. Features `interface` and `mine` forward to `game_core`.
 
@@ -77,6 +79,8 @@ The codebase is organized as a Cargo workspace with 7 crates:
   - `chat.rs`: renders chat rows from the `ChatEntry` trait (sender/content/age) and the input field with caret.
   - `stats.rs` / `toast.rs`: derive session totals and claims from the world's pending-batch counter and show toasts.
   - Preview without RPC or peers: `cargo run -p game_interface --example preview`.
+
+- **game_installer** (`crates/installer`): Install wizard, launcher and auto-updater binary `fonketh-installer` (see Releases section). No dependency on the game crates.
 
 - **game_primitives** (`crates/primitives`): Shared types and traits (GameEvent, WorldState, ExitStatus, Identifier, ChatEntry).
 
